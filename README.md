@@ -1,2 +1,2 @@
 # scripts
-Shell (mainly) scripts for various purposes
+Shell scripts for various purposes
