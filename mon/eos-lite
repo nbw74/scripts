@@ -1,0 +1,142 @@
+#!/bin/bash
+#
+# SNMP extender (Lite version)
+# v.0.4.1
+#
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+
+bn=$(basename $0)
+hn=$(hostname -f)
+
+WARN_THR=64
+CRIT_THR=86
+
+LANG=C
+LC_ALL=C
+LC_MESSAGES=C
+
+typeset MODE="" MSG="" OS=""
+typeset -i CHECK=0 UPLOAD=0 CODE=666 LOCK=0 PERFDATA=0
+
+set -o nounset
+set -o errtrace
+
+main() {
+
+    trap except ERR
+    trap myexit EXIT
+
+    case $MODE in
+        conntrack) modeConntrack
+            ;;
+        *) false
+    esac
+
+}
+
+modeConntrack() {
+    FN=$FUNCNAME
+
+    local -i msg_tf_count=0 ct_size=0 ct_count=0
+    local ct_perc="" conntrack_proc="" conntrack_sys=""
+
+    if [[ -f /proc/net/nf_conntrack ]]; then
+        conntrack_proc="/proc/net/nf_conntrack"
+        conntrack_sys="net.nf_conntrack_max"
+    elif [[ -f /proc/net/ip_conntrack ]]; then
+        conntrack_proc="/proc/net/ip_conntrack"
+        conntrack_sys="net.ipv4.ip_conntrack_max"
+    else
+        MSG="It seems that conntrack is not involved"
+        CODE=0; PERFDATA=0; exit
+    fi
+
+    msg_tf_count=$(dmesg | fgrep 'table full' | wc -l)
+    ct_size=$(sysctl $conntrack_sys | awk '{ print $3 }')
+    ct_count=$(cat $conntrack_proc | wc -l)
+    ct_perc=$(echo "x = $ct_count/($ct_size/100); scale=2; print (x+0.005)/1"|bc -l|awk '{printf "%.2f\n", $0}')
+
+    if (( msg_tf_count > 0 )); then
+        MSG="Conntrack table full"
+        CODE=2; exit
+    else
+        if (( $(echo "$ct_perc > $CRIT_THR"| bc -l) )); then
+            MSG="Conntrack table fill ${ct_count}/${ct_size} (${ct_perc}%)"
+            CODE=2; exit
+        elif (( $(echo "$ct_perc > $WARN_THR"| bc -l) )); then
+            MSG="Conntrack table fill ${ct_count}/${ct_size} (${ct_perc}%)"
+            CODE=1; exit
+        else
+            MSG="Conntrack table fill ${ct_count}/${ct_size} (${ct_perc}%)"
+            CODE=0; exit
+        fi
+    fi
+
+}
+
+usage() {
+    echo -e "Usage: $(basename $0) option (REQUIRED)
+        Options:
+        -f          add performance data output
+        -m <MODE>   set check mode (only conntrack available)
+        "
+}
+
+except() {
+    local -i RET=$?
+    
+    MSG="Error occured, exit code $RET. Program output: \"$(cat ${OUTFILE:-/dev/null})\""
+    writeLg "$MSG"
+
+    CODE=3; exit
+}
+
+myexit() {
+
+    [[ -f "${OUTFILE:-NOFILE}" ]] && rm "$OUTFILE"
+    [[ -f "${HASHFILE:-NOFILE}" ]] && rm "$HASHFILE"
+
+    if (( PERFDATA == 1 )); then
+        if [[ $MODE == "conntrack" ]]; then
+            MSG="${MSG}|$(printf "%s" "nf_conntrack=${ct_count};$(echo "x = ${ct_size}/100*$WARN_THR; scale=0; print (x+0.5)/1"|bc -l);$(echo "x = ${ct_size}/100*$CRIT_THR; scale=0; print (x+0.5)/1"|bc -l)")"
+        fi
+    fi
+
+    case $CODE in
+        0) echo "OK: $MSG" ;;
+        1) echo "WARNING: $MSG" ;;
+        2) echo "CRITICAL: $MSG" ;;
+        3) echo "UNKNOWN: $MSG" ;;
+        *) echo "UNKNOWN: <Bad exit code: ${CODE}>; $MSG";
+            CODE=3
+    esac
+
+    if (( LOCK == 0 )); then
+        [[ -f "${LOCKFILE:-NOFILE}" ]] && rm "$LOCKFILE"
+    fi
+    
+    exit $CODE
+}
+
+writeLg() {
+    logger -t "$bn" "$*"
+}
+
+while getopts "hfm:" OPTION; do
+    case $OPTION in
+        h) usage
+            exit 0
+            ;;
+        f) PERFDATA=1
+            ;;
+        m) MODE=$OPTARG
+            ;;
+        *) usage
+            exit 1
+    esac
+done
+
+main
+
+### EOF ###
