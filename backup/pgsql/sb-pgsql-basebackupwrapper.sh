@@ -27,7 +27,7 @@ typeset MAIL_SUBJ="ERRORS REPORTED: PostgreSQL Backup error Log"
 # DEFAULTS END
 
 typeset OPTTAIL=""
-typeset -i INIT=0 BACKUP_DEPTH=0 NOMAIL=0 config_present=0
+typeset -i BACKUP_DEPTH=0 NOMAIL=0 config_present=0
 
 main() {
     local fn=$FUNCNAME
@@ -51,11 +51,6 @@ main() {
             config_present=1
         fi
     done
-    # Если запущено с ключом -i переход в функцию ининциализации
-    if (( INIT )); then
-        init
-        exit 0
-    fi
 
     checks_main
 
@@ -65,17 +60,6 @@ main() {
     pg_basebackup --host=$instance_address --username=$BAKUSER --pgdata=$BAKDIR --no-password 2>$LOGERR
 
     exit 0
-}
-
-init() {
-    local fn=$FUNCNAME
-    NOMAIL=1
-
-    checks_init
-
-    useradd -M -s /bin/bash -d $BASEDIR $RUNUSER
-    chown ${RUNUSER}:$RUNUSER $BASEDIR
-    chmod 0700 $BASEDIR
 }
 
 checks_main() {
@@ -117,51 +101,14 @@ checks_main() {
     fi
 }
 
-checks_init() {
-    local fn=$FUNCNAME
-
-    if fgrep -q $RUNUSER /etc/passwd
-    then
-        echo "${bn}: * ERROR: user '$RUNUSER' already exists. No needs to run this script twice." 1>&2
-        false
-    fi
-
-    if (( UID != 0 )); then
-        echo "${bn}: * ERROR: parameter '-i' must be used only with root privileges" 1>&2
-        false
-    fi
-
-    if [[ ! -d "$BASEDIR" ]]; then
-        echo "${bn}: * ERROR: directory '$BASEDIR' is not exist. Please create it as mountpoint for backup volume" 1>&2
-        false
-    fi
-
-    if ! mount|fgrep -q $BASEDIR
-    then
-        echo "${bn}: * ERROR: directory '$BASEDIR' must be a mountpoint for backup volume" 1>&2
-        false
-    fi
-
-    if ! fgrep -q $BASEDIR /etc/fstab
-    then
-        echo "${bn}: * ERROR: please add a mount point for '$BASEDIR' in the /etc/fstab file" 1>&2
-        false
-    fi
-
-    if (( ! config_present )); then
-        echo "Configuration file '$CONFIG' not found in '$CONFIG_PATH'" >$LOGERR
-        false
-    fi
-}
-
 except() {
     local ret=$?
     local no=${1:-no_line}
 
     if (( ! NOMAIL )); then
         echo -e "\tПроизошла ошибка при выполнении скрипта ${0} (строка ${no}, функция '$fn'), 
-выполняющего полное копирование СУБД PostgreSQL посредством команды pg_basebackup.
-\tВывод сбойной команды:\n\n'$(cat ${LOGERR}|awk '$1=$1' ORS=' ')'" | mailx -s "$MAIL_SUBJ" $MAILXTO
+выполняющего полное копирование СУБД PostgreSQL посредством команды pg_basebackup с хоста *${instance_address}*.
+\tВывод сбойной команды:\n\n  $(cat ${LOGERR}|awk '$1=$1' ORS=' ')" | mailx -s "$MAIL_SUBJ" $MAILXTO
     fi
 
     if [[ -t 1 ]]; then
@@ -189,16 +136,12 @@ myexit() {
 }
 
 usage() {
-    echo -e "\tUsage: $bn [-i] [postgresql_instance_address]\n
-\t-i\tinit: check mountpoint for the backup volume and create '$RUNUSER' user.
-\t\tMust be run only once (as root)
+    echo -e "\tUsage: $bn [postgresql_instance_address]\n
 "
 }
 
-while getopts "ih" OPTION; do
+while getopts "h" OPTION; do
     case $OPTION in
-        i) INIT=1
-            ;;
         h) usage; exit 0
     esac
 done

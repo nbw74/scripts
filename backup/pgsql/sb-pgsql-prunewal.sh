@@ -26,7 +26,7 @@ typeset -i MAX_USED_PERC=86
 typeset -i MIN_WAL_AGE_DAYS=32
 # DEFAULTS END
 
-typeset OPTTAIL="" FILESYSTEM=""
+typeset FILESYSTEM=""
 typeset -i INIT=0 NOMAIL=0 warn=0 config_present=0
 
 main() {
@@ -158,7 +158,7 @@ except() {
     if (( ! NOMAIL )); then
         echo -e "\tПроизошла ошибка при выполнении скрипта ${0} (строка ${no}, функция '$fn'), 
 выполняющего удаление старых WAL с сервера архивов.
-\tВывод сбойной команды:\n\n'$(cat ${LOGERR:-/dev/null}|awk '$1=$1' ORS=' ')'" | mailx -s "$MAIL_SUBJ" $MAILXTO
+\tВывод сбойной команды:\n\n  $(cat ${LOGERR:-/dev/null}|awk '$1=$1' ORS=' ')" | mailx -s "$MAIL_SUBJ" $MAILXTO
     fi
 
     if [[ -t 1 ]]; then
