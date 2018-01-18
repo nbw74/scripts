@@ -159,11 +159,9 @@ shift "$((OPTIND - 1))"
 
 OPTTAIL="$*"
 
-if (( ! INIT )); then
-    if [[ "${1:-NOP}" == "NOP" ]]; then
-        usage
-        exit 1
-    fi
+if [[ "${1:-NOP}" == "NOP" ]]; then
+    usage
+    exit 1
 fi
 
 main
