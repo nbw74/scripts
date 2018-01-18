@@ -64,7 +64,7 @@ main() {
     cd "${BASEDIR}/$instance_catalog" 2>$LOGERR
     # Удаление всех каталогов в текущем, оставляя только (( BACKUP_DEPTH - 1 ))
     ls -dt 20* 2>/dev/null | tail -n +$BACKUP_DEPTH | xargs rm -rf -- 2>$LOGERR
-    pg_basebackup --host=$instance_address --username=$BAKUSER --pgdata=$BAKDIR --no-password 2>$LOGERR
+    $command --host=$instance_address --username=$BAKUSER --pgdata=$BAKDIR --no-password 2>$LOGERR
 
     exit 0
 }
