@@ -26,13 +26,14 @@ typeset MAILXTO="root"
 typeset MAIL_SUBJ="ERRORS REPORTED: PostgreSQL Backup error Log"
 # DEFAULTS END
 
-typeset OPTTAIL=""
+typeset OPTTAIL="" PG_VERSION=DEFAULT
 typeset -i BACKUP_DEPTH=0 NOMAIL=0 config_present=0
 
 main() {
     local fn=$FUNCNAME
     local instance_address=$OPTTAIL
     local instance_catalog=${OPTTAIL%-*}
+    local command=""
 
     trap 'except $LINENO' ERR
     trap myexit EXIT
@@ -53,6 +54,12 @@ main() {
     done
 
     checks_main
+
+    if [[ $PG_VERSION == "DEFAULT" ]]; then
+        command=/usr/bin/pg_basebackup
+    else
+        command=/usr/pgsql-${PG_VERSION}/bin/pg_basebackup
+    fi
 
     cd "${BASEDIR}/$instance_catalog" 2>$LOGERR
     # Удаление всех каталогов в текущем, оставляя только (( BACKUP_DEPTH - 1 ))
@@ -136,12 +143,14 @@ myexit() {
 }
 
 usage() {
-    echo -e "\tUsage: $bn [postgresql_instance_address]\n
+    echo -e "\tUsage: $bn [-V pg_version] <postgresql_instance_address>\n
 "
 }
 
-while getopts "h" OPTION; do
+while getopts "V:h" OPTION; do
     case $OPTION in
+        V) PG_VERSION=$OPTARG
+            ;;
         h) usage; exit 0
     esac
 done
