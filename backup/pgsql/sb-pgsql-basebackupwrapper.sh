@@ -24,6 +24,7 @@ typeset BAKUSER="replicator"
 typeset BASEDIR="/srv/basebackup"
 typeset MAILXTO="root"
 typeset MAIL_SUBJ="ERRORS REPORTED: PostgreSQL Backup error Log"
+typeset -i STRIP_LAST_DASH_IN_ADDRESS=0
 # DEFAULTS END
 
 typeset OPTTAIL="" PG_VERSION=DEFAULT
@@ -32,7 +33,6 @@ typeset -i BACKUP_DEPTH=0 NOMAIL=0 config_present=0
 main() {
     local fn=$FUNCNAME
     local instance_address=$OPTTAIL
-    local instance_catalog=${OPTTAIL%-*}
     local command=""
 
     trap 'except $LINENO' ERR
@@ -52,6 +52,12 @@ main() {
             config_present=1
         fi
     done
+
+    if (( STRIP_LAST_DASH_IN_ADDRESS )); then
+        local instance_catalog=${OPTTAIL%-*}
+    else
+        local instance_catalog=${OPTTAIL}
+    fi
 
     checks_main
 
@@ -143,12 +149,17 @@ myexit() {
 }
 
 usage() {
-    echo -e "\tUsage: $bn [-V pg_version] <postgresql_instance_address>\n
+    echo -e "\tUsage: $bn [OPTIONS] <postgresql_instance_address>\n
+    Options:
+    -s      strip last dash-separated part of instance address
+    -V      PostgreSQL version in format N.N
 "
 }
 
-while getopts "V:h" OPTION; do
+while getopts "V:sh" OPTION; do
     case $OPTION in
+        s) STRIP_LAST_DASH_IN_ADDRESS=1
+            ;;
         V) PG_VERSION=$OPTARG
             ;;
         h) usage; exit 0
