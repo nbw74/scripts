@@ -20,7 +20,8 @@ readonly ping_opts="-i0.2 -W1 -c5 -q"
 typeset OPTTAIL="" ADDRESS=""
 
 main() {
-    local fn=$FUNCNAME
+    local fn=${FUNCNAME[0]}
+    local cert=""
 
     trap 'except $LINENO' ERR
     trap _exit EXIT
@@ -35,9 +36,9 @@ main() {
 
     aunpack $OPTTAIL
     mv ${OPTTAIL%\.*}.key ${OPTTAIL%\.*}/
-    cd ${OPTTAIL%\.*}
+    cd ${OPTTAIL%\.*} || false
 
-    local cert=$(ls -1 *.crt|head -1)
+    cert=$(find . -maxdepth 1 -type f -name '*.crt' -printf '%P\n' -quit)
     local cert_final=${cert//_/.}
     local domain=${cert_final%\.*}
 
@@ -71,6 +72,20 @@ main() {
 except() {
     local ret=$?
     local no=${1:-no_line}
+
+    if [[ -t 1 ]]; then
+        echo_info "rollback." 1>&2
+    fi
+
+    if [[ -f ${domain}.key ]]; then
+        mv ${domain}.key ../${OPTTAIL%\.*}.key || :
+    fi
+
+    cd .. || :
+
+    if [[ -d ${OPTTAIL%\.*} ]]; then
+        rm -r ${OPTTAIL%\.*} || :
+    fi
 
     if [[ -t 1 ]]; then
         echo_fatal "error occured in function '$fn' on line ${no}." 1>&2
