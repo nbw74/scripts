@@ -21,16 +21,14 @@ typeset CHARSET="utf8"
 typeset COLLATE="utf8_general_ci"
 
 typeset DBMS="" DBHOST="" DBUSER="" PASSWD="" DBCREDS="" DBCREDS_RO=""
-typeset authParams="" cmd=""
+typeset authParams=""
 typeset DBPORT=""
 typeset mysql_bin=""
 
 trap except ERR
-# Не работает эта хуйня
-# trap 'prev_cmd=$cmd; cmd=$BASH_COMMAND' DEBUG
 
 Main() {
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
     local -i dbtype=0
 
     if [[ $DBMS =~ mysql|m ]]; then
@@ -69,7 +67,7 @@ mdpass() {
 }
 
 CreateDB() {
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
 
     
     if [[ ${PASSWD:-NOP} == "NOP" ]]; then
@@ -107,7 +105,7 @@ CreateDB() {
 }
 
 findMy() {
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
 
     # Find mysql executable
     # Fast and dirty
@@ -131,7 +129,7 @@ findMy() {
 }
 
 createMy() {
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
 
     findMy
 
@@ -157,7 +155,7 @@ createMy() {
 }
 
 createPg() {
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
 
     if [[ -n "$DBHOST" ]]; then
         DBHOST="-h $DBHOST"
@@ -172,7 +170,7 @@ createPg() {
 }
 
 chkNameLength() {
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
 
     local -i dbNameMaxLength=0 len=0
 
@@ -193,7 +191,7 @@ chkNameLength() {
 }
 
 Echo() {
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
 
     # Wiki page generation
 
@@ -212,7 +210,7 @@ ${DBCREDS}${DBCREDS_RO}
 }
 
 RemoveDB() {
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
     warn=1
 
     if (( dbtype == 1 )); then
@@ -256,7 +254,6 @@ except() {
     RET=$?
 
     if (( warn == 1 )); then
-        # echo -n "W: prev. command is \"$prev_cmd\""
         echo_warning
         echo
         return 0
