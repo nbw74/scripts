@@ -134,7 +134,7 @@ _exit() {
 }
 
 usage() {
-    echo -e "\tUsage: $bn [OPTIONS] <parameter>\n
+    echo -e "\n\tUsage: $bn [OPTIONS] <parameter>\n
     Options:
 
     -u <string>     database user (REQUIRED)
@@ -174,7 +174,7 @@ readonly C_WHITE="tput setaf 7"
 echo_err() { $C_WHITE; echo "* ERROR: $*" 1>&2; $C_RST; }
 echo_fatal() { $C_RED; echo "* FATAL: $*" 1>&2; $C_RST; }
 echo_warn() { $C_YELLOW; echo "* WARNING: $*" 1>&2; $C_RST; }
-echo_info() { $C_BLUE; echo "* INFO: $*" 1>&2; $C_RST; }
+echo_info() { $C_RST; echo "* INFO: $*" 1>&2; $C_RST; }
 echo_ok() { $C_GREEN; echo "* OK" 1>&2; $C_RST; }
 
 main
