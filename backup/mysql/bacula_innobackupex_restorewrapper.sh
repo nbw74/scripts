@@ -10,12 +10,12 @@ typeset MARIADB_VERSION=""
 typeset DB_NAME=""
 typeset -i NODUMP=0
 
-readonly bn=$(basename $0)
+readonly bn=$(basename "$0")
 
 main() {
     trap except ERR
 
-    local FN=$FUNCNAME
+    local FN=${FUNCNAME[0]}
 
     if [[ "${MARIADB_VERSION:-UNSET}" == "UNSET" || ! ${MARIADB_VERSION} =~ 100|101 ]]; then
         echo "${bn}: '-m' option required. See '-h' for details"
@@ -57,7 +57,7 @@ main() {
         echo ".. Start SCL MariaDB service "
         systemctl start $SCL_SERVICE
         echo ".. Execute mysqldump "
-        /opt/rh/rh-mariadb${MARIADB_VERSION}/root/bin/mysqldump ${DB_NAME} | lbzip2 - > ${DB_NAME}-$(date '+%FT%H%M').sql.bz2
+        /opt/rh/rh-mariadb${MARIADB_VERSION}/root/bin/mysqldump ${DB_NAME} | lbzip2 - > "${DB_NAME}-$(date '+%FT%H%M').sql.bz2"
         echo ".. Stop SCL MariaDB service "
         systemctl stop $SCL_SERVICE
         rm -r "$XTRABAK_DIR"
@@ -92,6 +92,8 @@ while getopts "m:d:Nh" OPTION; do
         N) NODUMP=1
             ;;
         h) usage
+            ;;
+        *) usage
     esac
 done
 
