@@ -7,9 +7,9 @@ set -o nounset
 set -o errtrace
 
 readonly PATH=/bin:/usr/bin
-readonly bn=$(basename $0)
+readonly bn=$(basename "$0")
 
-readonly OUTFILE=$(mktemp -t ${bn}.XXXX)
+readonly OUTFILE=$(mktemp -t "${bn}.XXXX")
 readonly LOCKFILE=/tmp/${bn%%\.*}.lock
 readonly LOG=/var/log/${bn%%\.*}.log
 
@@ -23,14 +23,14 @@ main() {
     trap except ERR
     trap myexit EXIT
 
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
 
     if [[ -f "$LOCKFILE" ]]; then
         writeLog "ERROR: lock file found, exiting..."
         KEEPLOCK=1
         exit 1
     else
-        touch $LOCKFILE
+        touch "$LOCKFILE"
 
         if [[ -z $NFS_SERVER || -z $NFS_EXPORT ]]; then
             writeLog "ERROR: required parameter is missing"
@@ -38,27 +38,27 @@ main() {
         fi
 
         Mount
-        rsnapshot $RSNAP_ARG 2>$OUTFILE
+        rsnapshot $RSNAP_ARG 2>"$OUTFILE"
 
     fi
 }
 
 Mount() {
 
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
     # defaults
     local nfs="nfs4"
 
     MOUNTROOT=${MOUNTROOT}/${NFS_SERVER%%\.*}
 
-    mkdir -p $MOUNTROOT >$OUTFILE 2>&1
+    mkdir -p $MOUNTROOT >"$OUTFILE" 2>&1
     writeLog "INFO: ${MOUNTROOT} created."
 
     if (( NFS_V3 )); then
         nfs="nfs"
     fi
-
-    mount -t $nfs ${nfs_opts} ${NFS_SERVER}:/${NFS_EXPORT} $MOUNTROOT >$OUTFILE 2>&1
+    # shellcheck disable=SC2086
+    mount -t $nfs ${nfs_opts} ${NFS_SERVER}:/${NFS_EXPORT} $MOUNTROOT >"$OUTFILE" 2>&1
 
     writeLog "INFO: filesystem ${NFS_EXPORT} mounted in ${MOUNTROOT}."
 
@@ -69,12 +69,12 @@ Mount() {
 
 Umount() {
 
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
 
-    umount "$MOUNTROOT" >$OUTFILE 2>&1
+    umount "$MOUNTROOT" >"$OUTFILE" 2>&1
     writeLog "INFO: ${MOUNTROOT} unmounted."
     sleep 1
-    rmdir $MOUNTROOT >$OUTFILE 2>&1
+    rmdir "$MOUNTROOT" >"$OUTFILE" 2>&1
     writeLog "INFO: ${MOUNTROOT} removed."
 }
 
@@ -89,7 +89,7 @@ myexit() {
         if (( ! MOUNT_ONLY )); then
             Umount
         fi
-        [[ -f $LOCKFILE ]] && rm $LOCKFILE
+        [[ -f $LOCKFILE ]] && rm "$LOCKFILE"
         [[ -f "${OUTFILE:-NOFILE}" ]] && rm "$OUTFILE"
     fi
 }
@@ -97,14 +97,14 @@ myexit() {
 except() {
     local -i RET=$?
 
-    MSG="Error in function ${FN:-UNKNOWN}, exit code $RET. Program output was: \"$(cat ${OUTFILE:-/dev/null})\""
+    MSG="Error in function ${FN:-UNKNOWN}, exit code $RET. Program output was: \"$(cat "${OUTFILE:-/dev/null}")\""
     writeLog "$MSG"
 
     exit $RET
 }
 
 usage() {
-    echo -e "Usage: $(basename $0) option (REQUIRED)
+    echo -e "Usage: $bn option (REQUIRED)
         Options:
         -3          use NFS v.3 (default use version 4)
         -e <path>   exported filesystem (e.q. \`volume1')

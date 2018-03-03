@@ -7,7 +7,7 @@
 set -o nounset
 
 readonly PATH=/bin:/usr/bin:/sbin:/usr/sbin
-readonly bn=$(basename $0)
+readonly bn=$(basename "$0")
 
 readonly OUTFILE=$(mktemp -t incrsync.XXXX)
 readonly LOCKFILE=/tmp/${bn%%\.*}.lock
@@ -20,13 +20,13 @@ typeset -i MOUNT=0
 typeset -i UMOUNT=0
 
 main() {
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
 
-    if [ -f $LOCKFILE ]; then
+    if [ -f "$LOCKFILE" ]; then
         writeLog "ERROR: lock file found, exiting..."
         exit 1
     else
-        touch $LOCKFILE
+        touch "$LOCKFILE"
         except
 
         MOUNTROOT="${MOUNTROOT}/$(echo $DAVFS_URI | awk '{ sub(/(http|https):\/\//, ""); sub(/\/.*/, ""); printf $0 }')"
@@ -38,11 +38,11 @@ main() {
                 false || except
             fi
 
-            mkdir -p $MOUNTROOT
+            mkdir -p "$MOUNTROOT"
             except
             writeLog "INFO: ${MOUNTROOT} created."
-
-            mount.davfs $davfs_opts "$DAVFS_URI" $MOUNTROOT > $OUTFILE 2>&1
+            # shellcheck disable=SC2086
+            mount.davfs $davfs_opts "$DAVFS_URI" "$MOUNTROOT" > "$OUTFILE" 2>&1
             except
             writeLog "INFO: DAVFS URI ${DAVFS_URI} mounted in ${MOUNTROOT}."
 
@@ -54,11 +54,11 @@ main() {
             fi
 
             sleep 2
-            umount $MOUNTROOT > $OUTFILE 2>&1
+            umount "$MOUNTROOT" > "$OUTFILE" 2>&1
             except
             writeLog "INFO: ${MOUNTROOT} unmounted."
             sleep 1
-            rmdir $MOUNTROOT
+            rmdir "$MOUNTROOT"
             except
             writeLog "INFO: ${MOUNTROOT} removed."
         else
@@ -75,8 +75,8 @@ except() {
     local RET=$?
     # local opt1=${1:-NOOP}
 
-    if (( $RET != 0 )); then
-        writeLog "Error in function ${FN:-UNKNOWN}, exit code $RET. Last command output: \"$(cat $OUTFILE)\""
+    if (( RET != 0 )); then
+        writeLog "Error in function ${FN:-UNKNOWN}, exit code $RET. Last command output: \"$(cat "$OUTFILE")\""
         myexit $RET
     fi
 }
@@ -84,18 +84,18 @@ except() {
 myexit() {
     local RET="$1"
 
-    [[ -f $OUTFILE ]] && rm $OUTFILE
-    [[ -f $LOCKFILE ]] && rm $LOCKFILE
-    exit $RET
+    [[ -f $OUTFILE ]] && rm "$OUTFILE"
+    [[ -f $LOCKFILE ]] && rm "$LOCKFILE"
+    exit "$RET"
 }
 
 writeLog() {
-    echo "$*" | tee -a $LOG
+    echo "$*" | tee -a "$LOG"
     logger -t "$bn" "$*"
 }
 
 usage() {
-    echo -e "Usage: $(basename $0) option (REQUIRED)
+    echo -e "Usage: $bn option (REQUIRED)
         Options:
         -p <URI>    DavFS URI
         -m          mount DAV filesystem

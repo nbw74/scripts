@@ -25,9 +25,8 @@ readonly -a MYCNF=(
     )
 
 PATH=/bin:/usr/bin:/sbin:/usr/sbin
-bn=$(basename $0)
+bn=$(basename "$0")
 
-typeset -i BACKUP_MODE=0
 typeset -i PREPARE=0
 typeset -i RESTORE=0
 typeset -i KEEPOLD=0
@@ -42,7 +41,7 @@ Main() {
     local f=""
     # Условие для нахождения файла конфигурации my.cnf
     if [[ -z "$DEFAULTS" ]]; then
-        for f in ${MYCNF[@]}; do
+        for f in "${MYCNF[@]}"; do
             if [[ -f "$f" ]]; then
                 DEFAULTS="$f"
                 break
@@ -79,7 +78,7 @@ Main() {
 }
 
 tailString() {
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
 
     if tail -n2 $LOGFILE|grep -qF "completed OK"; then
 	writeLog "completed OK"
@@ -93,7 +92,7 @@ chkXB() {
     local prg=""
 
     for prg in innobackupex rsync bc; do
-        if which $prg >/dev/null 2>&1; then
+        if command -v $prg >/dev/null; then
             continue
         else
             writeLog "ERROR: $prg not installed."
@@ -105,6 +104,7 @@ chkXB() {
 credLoad() {
     # Подгружаем файлик с учётными данными
     if [ -f "$CREDFILE" ]; then
+        # shellcheck disable=SC1090
 	. $CREDFILE
     else
 	writeLog "ERROR: Credentials file not found"
@@ -118,18 +118,19 @@ credLoad() {
 # Функция имеет только историческое значение; начиная с версии 0.3.6
 # уровень бэкапа задаётся параметром "-l LEVEL"
 typeDecision() {
+    local -a xdirs=()
     # Define array ( day-of-week day-of-month )
-    Day=( $(date '+%u %d') )
+    read -ar Day < <( date '+%u %d' )
     # Если Пн
-    if (( ${Day[0]} == 1 )); then
+    if (( Day[0] == 1 )); then
 	# и если входит в первые 7 дней
-	if (( ${Day[1]} <= 7 )); then
+	if (( Day[1] <= 7 )); then
 	    return 0
 	fi
     fi
 
-    local -a xdirs=($(ls -tr $XBDIR))
-    (( DEBUG == 1 )) && echo "xdirs: \"${xdirs[@]}\"; #: \"${#xdirs[@]}\""
+    mapfile -t xdirs < <( ls -tr $XBDIR )
+    (( DEBUG == 1 )) && echo "xdirs: \"${xdirs[*]}\"; #: \"${#xdirs[@]}\""
 
     if [ ! -d "$XBDIR" ]; then
 	return 0
@@ -166,14 +167,14 @@ backupFull() {
     diskSpaceChk
     credLoad
 
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
 
     rm -r $XBDIR 2>>$LOGFILE
     mkdir -p $XBDIR 2>>$LOGFILE
 
     writeLog "INFO: performing full backup"
     (( DEBUG == 1 )) && echo "Commandline: innobackupex --defaults-file=$DEFAULTS --user=$MUSER --password=$MPASS --rsync --no-timestamp $BASEDIR >>$LOGFILE 2>&1"
-    innobackupex --defaults-file=$DEFAULTS --user=$MUSER --password=$MPASS --rsync --no-timestamp $BASEDIR >>$LOGFILE 2>&1
+    innobackupex --defaults-file="$DEFAULTS" --user="$MUSER" --password="$MPASS" --rsync --no-timestamp $BASEDIR >>$LOGFILE 2>&1
     except
     tailString
 }
@@ -183,31 +184,33 @@ backupIncremental() {
     diskSpaceChk
     credLoad
 
-    FN=$FUNCNAME
-    
-    cd $XBDIR
+    FN=${FUNCNAME[0]}
+    local -a xdirs=()
+
+    cd $XBDIR || false
     except
     # Помещаем список каталогов в массив
-    local -a xdirs=($(ls -tr))
-    (( DEBUG == 1 )) && echo "xdirs: \"${xdirs[@]}\""
+    mapfile -t xdirs < <( ls -tr )
+    (( DEBUG == 1 )) && echo "xdirs: \"${xdirs[*]}\""
     # Для инкрементального бэкапа базовым должен быть самый новый каталог
     BASEDIR=${xdirs[$(( ${#xdirs[@]} - 1 ))]}
 
     writeLog "INFO: performing incremental backup"
-    innobackupex --defaults-file=$DEFAULTS --user=$MUSER --password=$MPASS --rsync --incremental $XBDIR --incremental-basedir=$BASEDIR >>$LOGFILE 2>&1
+    innobackupex --defaults-file="$DEFAULTS" --user="$MUSER" --password="$MPASS" --rsync --incremental $XBDIR --incremental-basedir="$BASEDIR" >>$LOGFILE 2>&1
     except
     tailString
     # После отработки удаляем всё, кроме последнего свежесозданного каталога, который сожрёт Bacula
-    (( KEEPOLD == 1 )) || rm -r ${xdirs[@]}
+    (( KEEPOLD == 1 )) || rm -r "${xdirs[@]}"
 }
 
 prepareIncrementalBackup() {
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
+    local -a xdirs=()
 
-    cd $XBDIR
+    cd $XBDIR || false
     except
     # Помещаем список каталогов в массив
-    local -a xdirs=($(ls))
+    mapfile -t xdirs < <(ls)
     
     BASEDIR=${xdirs[$(( ${#xdirs[@]} - 1 ))]}
     if [ "$BASEDIR" != "FULL" ]; then
@@ -215,7 +218,7 @@ prepareIncrementalBackup() {
 	exit 1
     else
 	writeLog "INFO: Preparing $BASEDIR"
-	innobackupex --apply-log --redo-only $PWD/$BASEDIR >$LOGFILE 2>&1
+	innobackupex --apply-log --redo-only "$PWD/$BASEDIR" >$LOGFILE 2>&1
 	except
 	tailString
     fi
@@ -226,13 +229,13 @@ prepareIncrementalBackup() {
     # Удаляем хвостовой элемент массива, сохраненный в переменную выше
     unset xdirs[$(( ${#xdirs[@]} - 1 ))]
     # Применяем оставшиеся элементы
-    for dir in ${xdirs[@]}; do
+    for dir in "${xdirs[@]}"; do
 	# Пропускаем базовый каталог
 	if [ "$dir" = "FULL" ]; then
 	    continue
 	fi
 	writeLog "INFO: Preparing $dir"
-	innobackupex --apply-log --redo-only  $PWD/$BASEDIR --incremental-dir=$PWD/$dir >>$LOGFILE 2>&1
+	innobackupex --apply-log --redo-only "$PWD/$BASEDIR" --incremental-dir="$PWD/$dir" >>$LOGFILE 2>&1
 	except
 	tailString
     done
@@ -244,17 +247,18 @@ prepareIncrementalBackup() {
 	return
     else
 	writeLog "INFO: Preparing $LAST_INCR (tail)"
-	innobackupex --apply-log $PWD/$BASEDIR --incremental-dir=$PWD/$LAST_INCR >>$LOGFILE 2>&1
+	innobackupex --apply-log "$PWD/$BASEDIR" --incremental-dir="$PWD/$LAST_INCR" >>$LOGFILE 2>&1
 	except
 	tailString
     fi
 }
 
 restoreBackup() {
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
+    typeset -a datadircontent=()
 
-    typeset -a datadircontent=($(ls $DATADIR))
-    (( DEBUG )) && echo "datadircontent: ${datadircontent[@]}"
+    mapfile -t datadircontent < <( ls "$DATADIR" )
+    (( DEBUG )) && echo "datadircontent: ${datadircontent[*]}"
 
     if (( ${#datadircontent[@]} != 0 )); then
 	writeLog "ERROR: The datadir must be empty; Percona XtraBackup innobackupex --copy-back option will not copy over existing files."
@@ -264,13 +268,13 @@ restoreBackup() {
     typeset -i MYSQLDPID=$(pidof -s mysqld)
     (( DEBUG )) && echo "MYSQLDPID: \"$MYSQLDPID\""
 
-    if (( $MYSQLDPID )); then
+    if (( MYSQLDPID )); then
 	writeLog "ERROR: MySQL server needs to be shut down before restore is performed."
 	exit 129
     fi
 
     writeLog "INFO: Restoring from $BASEDIR"
-    innobackupex --defaults-file=$DEFAULTS --copy-back $BASEDIR >>$LOGFILE 2>&1
+    innobackupex --defaults-file="$DEFAULTS" --copy-back "$BASEDIR" >>$LOGFILE 2>&1
     except
     tailString
 
@@ -283,14 +287,16 @@ restoreBackup() {
 # удаляет файлы баз из остающегося каталога
 # для уменьшения занимаемого места
 flushBackup() {
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
+    local -a xdirs=()
 
-    cd $XBDIR
+    cd $XBDIR || false
     except
     # Помещаем список каталогов в массив
-    local -a xdirs=($(ls -tr))
+    mapfile -t xdirs < <( ls -tr )
     # Идём в последний по времени каталог
-    cd ${xdirs[$(( ${#xdirs[@]} - 1 ))]}
+    cd "${xdirs[$(( ${#xdirs[@]} - 1 ))]}" || false
+    except
     # Удаляем всё, кроме файлов описания бэкапа
     writeLog "INFO: Removing data files from ${PWD}: $(ls -dm !(xtrabackup*|backup-my.cnf))"
     rm -r !(xtrabackup*|backup-my.cnf)
@@ -298,15 +304,17 @@ flushBackup() {
 }
 # Проверка наличия свободного места для бэкапа
 diskSpaceChk() {
-    FN=$FUNCNAME
-    
-    local fs=""
+    FN=${FUNCNAME[0]}
 
-    local -i mysize=$(du -s $DATADIR | awk '{print $1}')
-    except
-    local -i required_size=$(echo "${mysize}+(${mysize}/100*${PERC_PLUS})"|bc)
-    except
+    local fs=""
+    local -i mysize=0
+    local -i required_size=0
     local -i real_size=0
+
+    mysize=$(du -s "$DATADIR" | awk '{ print $1 }')
+    except
+    required_size=$(echo "${mysize}+(${mysize}/100*${PERC_PLUS})"|bc)
+    except
 
     for fs in '/var/preserve$' '/var$' '/$'; do
         real_size=$(df -P | awk -v "fs=$fs" '$0 ~ fs {print $4}')
@@ -334,7 +342,7 @@ writeLog() {
 }
 
 usage() {
-    echo -e "Usage: $(basename $0) option (REQUIRED)
+    echo -e "Usage: $bn option (REQUIRED)
         Options:
         -d          debug output
         -f <str>    --defaults-file for innobackupex
@@ -396,3 +404,7 @@ Main
 # v. 0.4.3 2017-08-13
 #       - multile fixes in/for restoreBackup
 #
+# v. 0.4.4 2018-03-04
+#       - ShellCheck
+
+## EOF ##

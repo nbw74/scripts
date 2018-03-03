@@ -7,7 +7,7 @@
 set -o nounset
 
 readonly PATH=/bin:/usr/bin
-readonly bn=$(basename $0)
+readonly bn=$(basename "$0")
 
 ## readonly OUTFILE=$(mktemp -t incrsync.XXXX)
 readonly LOCKFILE=/tmp/${bn%%\.*}.lock
@@ -19,15 +19,15 @@ typeset NFS_SERVER="" NFS_EXPORT="" MOUNTROOT="/mnt"
 typeset -i MOUNT=0 UMOUNT=0 NFS_V3=0 RW=0
 
 main() {
-    FN=$FUNCNAME
+    FN=${FUNCNAME[0]}
     # defaults
     local nfs="nfs4" mode="ro"
 
-    if [ -f $LOCKFILE ]; then
+    if [ -f "$LOCKFILE" ]; then
         writeLog "ERROR: lock file found, exiting..."
         exit 1
     else
-        touch $LOCKFILE
+        touch "$LOCKFILE"
         except
 
         MOUNTROOT=${MOUNTROOT}/${NFS_SERVER%%\.*}
@@ -49,6 +49,7 @@ main() {
             if (( RW )); then
                 mode="rw"
             fi
+            # shellcheck disable=SC2086
             mount -t $nfs ${nfs_opts}$mode ${NFS_SERVER}:/${NFS_EXPORT} $MOUNTROOT
             except
             writeLog "INFO: filesystem ${NFS_EXPORT} mounted in ${MOUNTROOT}."
@@ -82,7 +83,7 @@ except() {
     local RET=$?
     # local opt1=${1:-NOOP}
 
-    if (( $RET != 0 )); then
+    if (( RET != 0 )); then
         writeLog "Error in function ${FN:-UNKNOWN}, exit code $RET."
         myexit $RET
     fi
@@ -91,17 +92,17 @@ except() {
 myexit() {
     local RET="$1"
 
-    [[ -f $LOCKFILE ]] && rm $LOCKFILE
-    exit $RET
+    [[ -f $LOCKFILE ]] && rm "$LOCKFILE"
+    exit "$RET"
 }
 
 writeLog() {
-    echo "$*" | tee -a $LOG
+    echo "$*" | tee -a "$LOG"
     logger -t "$bn" "$*"
 }
 
 usage() {
-    echo -e "Usage: $(basename $0) option (REQUIRED)
+    echo -e "Usage: $bn option (REQUIRED)
         Options:
         -3          use NFS v.3 (default use version 4)
         -n <addr>   NFS server address
