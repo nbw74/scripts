@@ -5,18 +5,18 @@
 #
 
 if (( SHLVL == 1 )); then
+    typeset -i MUTE=0
+
     if [[ -z "$SSH_CLIENT" ]]; then
-        MESSAGE="        ATTENTION! $USER logged in from console"
+        MESSAGE="        ATTENTION! ${USER:-UNKNOWN} logged in from console"
         IP="console"
     else
         IP=${SSH_CLIENT%%\ *}
-        MESSAGE="        ATTENTION! $USER logged in from $IP"
+        MESSAGE="        ATTENTION! ${USER:-UNKNOWN} logged in from $IP"
     fi
 
     if [[ -f ${HOME}/.white_ip ]]; then
         MUTE=$(grep -Fcx "$IP" ~/.white_ip)
-    else
-        MUTE=0
     fi
 
     if (( ! MUTE )); then
