@@ -3,8 +3,8 @@
 # Shell script template
 #
 
-set -E
 set -o nounset
+set -o errtrace
 
 # DEFAULTS BEGIN
 # DEFAULTS END
@@ -21,6 +21,8 @@ main() {
 
     trap 'except $LINENO' ERR
     trap _exit EXIT
+
+    checks
 
     exit 0
 }
@@ -43,7 +45,7 @@ except() {
     local no=${1:-no_line}
 
     if [[ -t 1 ]]; then
-        echo "* FATAL: error occured in function '$fn' on line ${no}. Output: '$(awk '$1=$1' ORS=' ' "${LOGERR}")'" 1>&2
+        echo "* FATAL: error occured in function '$fn' on line ${no}. Output: '$(awk '$1=$1' ORS=' ' "${LOGERR}")'" >&2
     fi
 
     logger -p user.err -t "$bn" "* FATAL: error occured in function '$fn' on line ${no}. Output: '$(awk '$1=$1' ORS=' ' "${LOGERR}")'"
@@ -61,28 +63,30 @@ usage() {
     echo -e "\\tUsage: $bn [OPTIONS] <parameter>\\n
     Options:
 
-    -h      print help
+    -a, --arg1 <value>      example argument
+    -h, --help              print help
 "
 }
+# Getopts
+getopt -T; (( $? == 4 )) || { echo "incompatible getopt version" >&2; exit 4; }
 
-while getopts "h" OPTION; do
-    case $OPTION in
-        h)
-            usage; exit 0
-            ;;
-        *)
-            usage; exit 1
-    esac
-done
-
-shift "$((OPTIND - 1))"
-
-# OPTTAIL="$*"
-
-if [[ "${1:-NOP}" == "NOP" ]]; then
-    usage
+if ! TEMP=$(getopt -o a:h --longoptions arg1:,help -n "$bn" -- "$@")
+then
+    echo "Terminating..." >&2
     exit 1
 fi
+
+eval set -- "$TEMP"
+unset TEMP
+
+while true; do
+    case $1 in
+        -a|--arg1)          FLAG=$2 ;       shift 2  ;;
+        -h|--help)          usage ;         exit 0  ;;
+        --)                 shift ;         break   ;;
+        *)                  usage ;         exit 1
+    esac
+done
 
 main
 
