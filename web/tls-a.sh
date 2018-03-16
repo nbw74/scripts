@@ -25,24 +25,25 @@ main() {
 
     trap 'except $LINENO' ERR
     trap _exit EXIT
-# Required binaries check
-    for i in $BIN_REQUIRED; do
-        if ! hash $i 2>/dev/null
-        then
-            echo "Required binary '$i' is not installed"
-            false
-        fi
-    done
+
+    _checks
 
     aunpack $OPTTAIL
     mv ${OPTTAIL%\.*}.key ${OPTTAIL%\.*}/
     cd ${OPTTAIL%\.*} || false
 
-    cert=$(find . -maxdepth 1 -type f -name '*.crt' -printf '%P\n' -quit)
+    cert=$(find . -maxdepth 1 -type f -regextype sed -regex '.*/[-_a-z0-9]\+\.crt'  -printf '%P\n' -quit)
     local cert_final=${cert//_/.}
     local domain=${cert_final%\.*}
 
-    cat $cert ${cert%\.*}.ca-bundle > $cert_final
+    if [[ -f "${cert%\.*}.ca-bundle" ]]; then
+        cat $cert ${cert%\.*}.ca-bundle > $cert_final
+    elif [[ -f COMODORSADomainValidationSecureServerCA.crt && -f COMODORSAAddTrustCA.crt && -f AddTrustExternalCARoot.crt ]]; then
+        cat $cert COMODORSADomainValidationSecureServerCA.crt COMODORSAAddTrustCA.crt AddTrustExternalCARoot.crt > $cert_final
+    else
+        echo_err "Unknown certificate layout"
+    fi
+
     mv ${OPTTAIL%\.*}.key ${domain}.key
 
     if [[ -z "$ADDRESS" ]]; then
@@ -67,6 +68,19 @@ main() {
 
     echo_ok
     exit 0
+}
+
+_checks() {
+    local fn=${FUNCNAME[0]}
+
+# Required binaries check
+    for i in $BIN_REQUIRED; do
+        if ! hash $i 2>/dev/null
+        then
+            echo "Required binary '$i' is not installed"
+            false
+        fi
+    done
 }
 
 except() {
@@ -111,24 +125,28 @@ usage() {
 "
 }
 
-while getopts "a:h" OPTION; do
-    case $OPTION in
-        a)
-            ADDRESS=$OPTARG
-            ;;
-        h)
-            usage; exit 0
+# Getopts
+getopt -T; (( $? == 4 )) || { echo "incompatible getopt version" >&2; exit 4; }
+
+if ! TEMP=$(getopt -o a:h --longoptions address:,help -n "$bn" -- "$@")
+then
+    echo "Terminating..." >&2
+    exit 1
+fi
+
+eval set -- "$TEMP"
+unset TEMP
+
+while true; do
+    case $1 in
+        -a|--address)       ADDRESS=$2 ;    shift 2  ;;
+        -h|--help)          usage ;         exit 0  ;;
+        --)                 shift ;         break   ;;
+        *)                  usage ;         exit 1
     esac
 done
 
-shift "$((OPTIND - 1))"
-
 OPTTAIL="$*"
-
-if [[ "${1:-NOP}" == "NOP" ]]; then
-    usage
-    exit 1
-fi
 
 readonly C_RST="tput sgr0"
 readonly C_RED="tput setaf 1"
