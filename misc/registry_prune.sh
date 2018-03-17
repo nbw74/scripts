@@ -13,6 +13,7 @@ readonly bn="$(basename "$0")"
 readonly LOGERR=$(mktemp --tmpdir "${bn%\.*}.XXXX")
 readonly BIN_REQUIRED=""
 readonly -a curl_opts=( --connect-timeout 4 --max-time 20 -sS )
+readonly -a curl_opts1=( -H "Accept: application/vnd.docker.distribution.manifest.v2+json" )
 # CONSTANTS END
 
 # DEFAULTS BEGIN
@@ -104,13 +105,20 @@ main() {
 	fi
 
 	for (( c = 0; c < ${#Candidates[@]}; c++ )); do
+	    local digest=""
+
 	    if ! inArray TaglistTail "${Candidates[c]}"; then
 		_verbose "Removing tag '${Candidates[c]}' ($((($(date +"%s")-$(date +"%s" --date "@${Taglist[${Candidates[c]}]}"))/(3600*24))) days old)"
 
 		if (( ! DRY_RUN )); then
-		    curl curl
+		    # Get tag digest
+		    digest=$(curl "${curl_opts[@]}" "${curl_opts1[@]}" -IX GET "${URL}/v2/${Repos[r]}/manifests/${Candidates[c]}" | awk '/Docker-Content-Digest:/ { gsub(/\r/,""); print $2 }' )
+		    # Delete manifest
+		    curl "${curl_opts[@]}" "${curl_opts1[@]}" -X DELETE "${URL}/v2/${Repos[r]}/manifests/$digest"
 		fi
 	    fi
+
+	    unset digest
 	done
 
 	unset Tags
@@ -190,7 +198,6 @@ except() {
 	# shellcheck disable=SC1003
         echo "* FATAL: error occured in function '$fn' on line ${no}. Output: '$(awk '$1=$1' ORS='\\\\' "${LOGERR}")'"
     fi
-
     # shellcheck disable=SC1003
     logger -p user.err -t "$bn" "* FATAL: error occured in function '$fn' on line ${no}. Output: '$(awk '$1=$1' ORS='\\\\' "${LOGERR}")'"
     exit $ret
