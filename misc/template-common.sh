@@ -32,7 +32,7 @@ checks() {
 
     # Required binaries check
     for i in $BIN_REQUIRED; do
-        if ! hash "$i" 2>/dev/null
+        if ! command -v "$i" >/dev/null
         then
             echo "Required binary '$i' is not installed" >"$LOGERR"
             false
@@ -60,7 +60,7 @@ _exit() {
 }
 
 usage() {
-    echo -e "\\tUsage: $bn [OPTIONS] <parameter>\\n
+    echo -e "\\n    Usage: $bn [OPTIONS] <parameter>\\n
     Options:
 
     -a, --arg1 <value>      example argument
@@ -81,10 +81,10 @@ unset TEMP
 
 while true; do
     case $1 in
-        -a|--arg1)          FLAG=$2 ;       shift 2  ;;
-        -h|--help)          usage ;         exit 0  ;;
-        --)                 shift ;         break   ;;
-        *)                  usage ;         exit 1
+	-a|--arg1)		FLAG=$2 ;	shift 2	;;
+	-h|--help)		usage ;		exit 0	;;
+	--)			shift ;		break	;;
+	*)			usage ;		exit 1
     esac
 done
 
