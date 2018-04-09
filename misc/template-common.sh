@@ -5,6 +5,7 @@
 
 set -o nounset
 set -o errtrace
+set -o pipefail
 
 # DEFAULTS BEGIN
 # DEFAULTS END
@@ -22,6 +23,10 @@ main() {
     trap 'except $LINENO' ERR
     trap _exit EXIT
 
+    touch "$LOGERR"
+    exec 4>&2		# Link file descriptor #4 with stderr. Preserve stderr
+    exec 2>>"$LOGERR"	# stderr replaced with file $LOGERR
+
     checks
 
     exit 0
@@ -29,12 +34,11 @@ main() {
 
 checks() {
     local fn=${FUNCNAME[0]}
-
     # Required binaries check
     for i in $BIN_REQUIRED; do
         if ! command -v "$i" >/dev/null
         then
-            echo "Required binary '$i' is not installed" >"$LOGERR"
+            echo "Required binary '$i' is not installed" >&2
             false
         fi
     done
@@ -45,15 +49,17 @@ except() {
     local no=${1:-no_line}
 
     if [[ -t 1 ]]; then
-        echo "* FATAL: error occured in function '$fn' on line ${no}. Output: '$(awk '$1=$1' ORS=' ' "${LOGERR}")'" >&2
+        echo "* FATAL: error occured in function '$fn' near line ${no}. Stderr: '$(awk '$1=$1' ORS=' ' "${LOGERR}")'"
     fi
 
-    logger -p user.err -t "$bn" "* FATAL: error occured in function '$fn' on line ${no}. Output: '$(awk '$1=$1' ORS=' ' "${LOGERR}")'"
+    logger -p user.err -t "$bn" "* FATAL: error occured in function '$fn' near line ${no}. Stderr: '$(awk '$1=$1' ORS=' ' "${LOGERR}")'"
     exit $ret
 }
 
 _exit() {
     local ret=$?
+
+    exec 2>&4 4>&-	# Restore stderr and close file descriptor #4
 
     [[ -f $LOGERR ]] && rm "$LOGERR"
     exit $ret
