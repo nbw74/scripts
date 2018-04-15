@@ -67,6 +67,7 @@ main() {
         command=/usr/pgsql-${PG_VERSION}/bin/pg_basebackup
     fi
 
+    [[ -d "${BASEDIR}/$instance_catalog" ]] || mkdir "${BASEDIR}/$instance_catalog" 2>$LOGERR
     cd "${BASEDIR}/$instance_catalog" 2>$LOGERR
     # Удаление всех каталогов в текущем, оставляя только (( BACKUP_DEPTH - 1 ))
     ls -dt 20* 2>/dev/null | tail -n +$BACKUP_DEPTH | xargs rm -rf -- 2>$LOGERR
@@ -151,13 +152,16 @@ myexit() {
 usage() {
     echo -e "\tUsage: $bn [OPTIONS] <postgresql_instance_address>\n
     Options:
-    -s      strip last dash-separated part of instance address
-    -V      PostgreSQL version in format N.N
+    -b		BASEDIR (default: '$BASEDIR')
+    -s		strip last dash-separated part of instance address
+    -V		PostgreSQL version in format N.N
 "
 }
 
 while getopts "V:sh" OPTION; do
     case $OPTION in
+	b) BASEDIR=$OPTARG
+	    ;;
         s) STRIP_LAST_DASH_IN_ADDRESS=1
             ;;
         V) PG_VERSION=$OPTARG
