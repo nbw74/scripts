@@ -158,7 +158,7 @@ usage() {
 "
 }
 
-while getopts "V:sh" OPTION; do
+while getopts "V:b:sh" OPTION; do
     case $OPTION in
 	b) BASEDIR=$OPTARG
 	    ;;
