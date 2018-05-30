@@ -17,7 +17,7 @@ readonly BIN_REQUIRED="aunpack"
 readonly ping_opts="-i0.2 -W1 -c5 -q"
 # CONSTANTS END
 
-typeset OPTTAIL="" ADDRESS=""
+typeset OPTTAIL="" ADDRESS="" REALM=""
 
 main() {
     local fn=${FUNCNAME[0]}
@@ -46,25 +46,34 @@ main() {
 
     mv ${OPTTAIL%\.*}.key ${domain}.key
 
-    if [[ -z "$ADDRESS" ]]; then
-        echo_info "remote server isn't specified, using '$domain'"
+    if [[ -z "$REALM" ]]; then
 
-        ADDRESS=$(dig +short $domain|head -1)
+	if [[ -z "$ADDRESS" ]]; then
+	    echo_info "remote server isn't specified, using '$domain'"
 
-        if [[ -z "$ADDRESS" ]]; then
-            echo_err "cannot resolve '$domain'"
-            false
-        fi
+	    ADDRESS=$(dig +short $domain|head -1)
+
+	    if [[ -z "$ADDRESS" ]]; then
+		echo_err "cannot resolve '$domain'"
+		false
+	    fi
+	fi
+
+	if ! ping $ping_opts $ADDRESS >/dev/null
+	then
+	    echo_err "'$ADDRESS' is unreachable"
+	    false
+	fi
+
+	echo_info "try scp files to '$ADDRESS'..."
+	scp $cert_final ${domain}.key ${ADDRESS}:
+
+    else
+
+	mkdir -p ${HOME}/ansible/${REALM}/files/crypto
+	cp -v $cert_final ${domain}.key ${HOME}/ansible/${REALM}/files/crypto
+	
     fi
-
-    if ! ping $ping_opts $ADDRESS >/dev/null
-    then
-        echo_err "'$ADDRESS' is unreachable"
-        false
-    fi
-
-    echo_info "try scp files to '$ADDRESS'..."
-    scp $cert_final ${domain}.key ${ADDRESS}:
 
     echo_ok
     exit 0
@@ -120,15 +129,16 @@ usage() {
     echo -e "\tUsage: $bn [OPTIONS] <(zip-)archive with certificates>\n
     Options:
 
-    -a <ipaddr> IP address for scp
-    -h          print help
+    -a, --address <ipaddr>	IP address for scp
+    -l, --local <REALM>		copy cert in local catalog ~/ansible/REALM/files/crypto
+    -h, --help			print help
 "
 }
 
 # Getopts
 getopt -T; (( $? == 4 )) || { echo "incompatible getopt version" >&2; exit 4; }
 
-if ! TEMP=$(getopt -o a:h --longoptions address:,help -n "$bn" -- "$@")
+if ! TEMP=$(getopt -o a:l:h --longoptions address:,local:,help -n "$bn" -- "$@")
 then
     echo "Terminating..." >&2
     exit 1
@@ -139,7 +149,8 @@ unset TEMP
 
 while true; do
     case $1 in
-        -a|--address)       ADDRESS=$2 ;    shift 2  ;;
+        -a|--address)       ADDRESS=$2 ;    shift 2 ;;
+	-l|--local)	    REALM=$2 ;	    shift 2 ;;
         -h|--help)          usage ;         exit 0  ;;
         --)                 shift ;         break   ;;
         *)                  usage ;         exit 1
