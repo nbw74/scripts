@@ -29,6 +29,13 @@ typeset -i STRIP_LAST_DASH_IN_ADDRESS=0
 
 typeset OPTTAIL="" PG_VERSION=DEFAULT
 typeset -i BACKUP_DEPTH=0 NOMAIL=0 config_present=0 DEBUG=0 DRY_RUN=0
+# Чтение конфигурационных файлов
+for path in $(echo "$CONFIG_PATH"|tr ':' ' '); do
+    if [[ -f "${path}/$CONFIG" ]]; then
+	source "${path}/$CONFIG"
+	config_present=1
+    fi
+done
 
 main() {
     local fn=$FUNCNAME
@@ -43,13 +50,6 @@ main() {
         then
             echo "Required binary '$i' is not installed" >$LOGERR
             false
-        fi
-    done
-    # Чтение конфигурационных файлов
-    for path in $(echo "$CONFIG_PATH"|tr ':' ' '); do
-        if [[ -f "${path}/$CONFIG" ]]; then
-            source "${path}/$CONFIG"
-            config_present=1
         fi
     done
 
