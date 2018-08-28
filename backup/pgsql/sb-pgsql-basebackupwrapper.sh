@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # pg_basebackup wrapper for periodic backup jobs
-# Southbridge LLC, 2017 A.D.
+# Southbridge LLC, 2017-2018 A.D.
 #
 
 set -E
@@ -28,7 +28,7 @@ typeset -i STRIP_LAST_DASH_IN_ADDRESS=0
 # DEFAULTS END
 
 typeset OPTTAIL="" PG_VERSION=DEFAULT
-typeset -i BACKUP_DEPTH=0 NOMAIL=0 config_present=0
+typeset -i BACKUP_DEPTH=0 NOMAIL=0 config_present=0 DEBUG=0 DRY_RUN=0
 
 main() {
     local fn=$FUNCNAME
@@ -67,11 +67,30 @@ main() {
         command=/usr/pgsql-${PG_VERSION}/bin/pg_basebackup
     fi
 
-    [[ -d "${BASEDIR}/$instance_catalog" ]] || mkdir "${BASEDIR}/$instance_catalog" 2>$LOGERR
+    if [[ ! -d "${BASEDIR}/$instance_catalog" ]]; then
+	if (( DEBUG )); then
+	    echo "RUN: mkdir \"${BASEDIR}/$instance_catalog\" 2>$LOGERR" >&2
+	fi
+	if (( ! DRY_RUN )); then
+	    mkdir "${BASEDIR}/$instance_catalog" 2>$LOGERR
+	fi
+    fi
+
     cd "${BASEDIR}/$instance_catalog" 2>$LOGERR
     # Удаление всех каталогов в текущем, оставляя только (( BACKUP_DEPTH - 1 ))
-    ls -dt 20* 2>/dev/null | tail -n +$BACKUP_DEPTH | xargs rm -rf -- 2>$LOGERR
-    $command --host=$instance_address --username=$BAKUSER --pgdata=$BAKDIR --no-password 2>$LOGERR
+    if (( DEBUG )); then
+	echo "RUN: ls -dt 20* 2>/dev/null | tail -n +$BACKUP_DEPTH | xargs rm -rf -- 2>$LOGERR" >&2
+    fi
+    if (( ! DRY_RUN )); then
+	ls -dt 20* 2>/dev/null | tail -n +$BACKUP_DEPTH | xargs rm -rf -- 2>$LOGERR
+    fi
+
+    if (( DEBUG )); then
+	echo "RUN: $command --host=$instance_address --username=$BAKUSER --pgdata=$BAKDIR --no-password 2>$LOGERR" >&2
+    fi
+    if (( ! DRY_RUN )); then
+	$command --host=$instance_address --username=$BAKUSER --pgdata=$BAKDIR --no-password 2>$LOGERR
+    fi
 
     exit 0
 }
@@ -152,25 +171,40 @@ myexit() {
 usage() {
     echo -e "\tUsage: $bn [OPTIONS] <postgresql_instance_address>\n
     Options:
-    -b		BASEDIR (default: '$BASEDIR')
-    -s		strip last dash-separated part of instance address
-    -V		PostgreSQL version in format N.N
+    --basedir, -b <path>	BASEDIR (default: '$BASEDIR')
+    --depth, -D <n>		number of stored backups
+    --strip-last-dash, -s	strip last dash-separated part of instance address
+    --pg-version, -V		PostgreSQL version in format N.N
+    --debug, -d			print some additional info
+    --dry-run, -n		do not make action, print info only (with -d)
+    --help, -h			print this text
 "
 }
+# Getopts
+getopt -T; (( $? == 4 )) || { echo "incompatible getopt version" >&2; exit 4; }
 
-while getopts "V:b:sh" OPTION; do
-    case $OPTION in
-	b) BASEDIR=$OPTARG
-	    ;;
-        s) STRIP_LAST_DASH_IN_ADDRESS=1
-            ;;
-        V) PG_VERSION=$OPTARG
-            ;;
-        h) usage; exit 0
+if ! TEMP=$(getopt -o b:D:V:sdnh --longoptions basedir:,depth:,strip-last-dash,pg-version:,debug,dry-run,help -n "$bn" -- "$@")
+then
+    echo "Terminating..." >&2
+    exit 1
+fi
+
+eval set -- "$TEMP"
+unset TEMP
+
+while true; do
+    case $1 in
+	-b|--basedir)		BASEDIR=$2 ;	shift 2	;;
+	-D|--depth)		BACKUP_DEPTH=$2 ;		shift 2	;;
+	-V|--pg-version)	PG_VERSION=$2 ;	shift 2	;;
+	-s|--strip-last-dash)	STRIP_LAST_DASH_IN_ADDRESS=1 ;	shift	;;
+	-d|--debug)		DEBUG=1 ;	shift	;;
+	-n|--dry-run)		DRY_RUN=1 ;	shift	;;
+	-h|--help)		usage ;		exit 0	;;
+	--)			shift ;		break	;;
+	*)			usage ;		exit 1
     esac
 done
-
-shift "$((OPTIND - 1))"
 
 OPTTAIL="$*"
 
