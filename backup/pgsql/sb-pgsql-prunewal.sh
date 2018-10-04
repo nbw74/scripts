@@ -27,7 +27,7 @@ typeset -i MIN_WAL_AGE_DAYS=32
 # DEFAULTS END
 
 typeset FILESYSTEM=""
-typeset -i NOMAIL=0 warn=0 config_present=0
+typeset -i NOMAIL=0 warn=0
 
 main() {
     local fn=${FUNCNAME[0]}
@@ -44,7 +44,6 @@ main() {
         if [[ -f "${path}/$CONFIG" ]]; then
 	    # shellcheck disable=SC1090
             source "${path}/$CONFIG"
-            config_present=1
         fi
     done
 
@@ -138,11 +137,6 @@ checks() {
 
     if [[ $(whoami) != "$RUNUSER" ]]; then
         echo "This script must be run as '$RUNUSER' user" >&2
-        false
-    fi
-
-    if (( ! config_present )); then
-        echo "Configuration file '$CONFIG' not found in '$CONFIG_PATH'" >&2
         false
     fi
 

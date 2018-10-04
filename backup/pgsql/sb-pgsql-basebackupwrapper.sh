@@ -28,13 +28,12 @@ typeset -i STRIP_LAST_DASH_IN_ADDRESS=0
 # DEFAULTS END
 
 typeset OPTTAIL="" PG_VERSION=DEFAULT
-typeset -i BACKUP_DEPTH=0 NOMAIL=0 config_present=0 DEBUG=0 DRY_RUN=0
+typeset -i BACKUP_DEPTH=0 NOMAIL=0 DEBUG=0 DRY_RUN=0
 # Чтение конфигурационных файлов
 for path in $(echo "$CONFIG_PATH"|tr ':' ' '); do
     if [[ -f "${path}/$CONFIG" ]]; then
 	# shellcheck disable=SC1090
 	source "${path}/$CONFIG"
-	config_present=1
     fi
 done
 
@@ -132,11 +131,6 @@ checks_main() {
     if ! grep -Fq $instance_catalog "$pgpass"
     then
         echo "PostgreSQL authorization file ($pgpass) is not contains authentication data for '$instance_address' address." >&2
-        false
-    fi
-
-    if (( ! config_present )); then
-        echo "Configuration file '$CONFIG' not found in '$CONFIG_PATH'" >&2
         false
     fi
 }
