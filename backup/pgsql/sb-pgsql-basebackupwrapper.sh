@@ -10,9 +10,9 @@ set -o nounset
 # CONSTANTS BEGIN
 readonly PATH=/bin:/usr/bin:/sbin:/usr/sbin
 readonly CONFIG_PATH=/usr/local/etc:/srv/southbridge/etc
-readonly bn="$(basename $0)"
-readonly LOGERR=$(mktemp --tmpdir ${bn%\.*}.XXXX)
-readonly CONFIG=${bn%\.*}.conf
+readonly bn="$(basename "$0")"
+readonly LOGERR="$(mktemp --tmpdir "${bn%\.*}.XXXX")"
+readonly CONFIG="${bn%\.*}.conf"
 readonly BIN_REQUIRED="pg_basebackup logger mailx"
 readonly pgpass="${HOME}/.pgpass"
 readonly BAKDIR="$(date '+%FT%H%M')"
@@ -32,23 +32,29 @@ typeset -i BACKUP_DEPTH=0 NOMAIL=0 config_present=0 DEBUG=0 DRY_RUN=0
 # Чтение конфигурационных файлов
 for path in $(echo "$CONFIG_PATH"|tr ':' ' '); do
     if [[ -f "${path}/$CONFIG" ]]; then
+	# shellcheck disable=SC1090
 	source "${path}/$CONFIG"
 	config_present=1
     fi
 done
 
 main() {
-    local fn=$FUNCNAME
+    local fn=${FUNCNAME[0]}
     local instance_address=$OPTTAIL
     local command=""
 
     trap 'except $LINENO' ERR
-    trap myexit EXIT
+    trap _exit EXIT
+
+    if (( ! DEBUG )); then
+	exec 4>&2		# Link file descriptor #4 with stderr. Preserve stderr
+	exec 2>>"$LOGERR"	# stderr replaced with file $LOGERR
+    fi
     # Проверка наличия нужных бинарников
     for i in $BIN_REQUIRED; do
-        if ! hash $i 2>/dev/null
+        if ! hash "$i" 2>/dev/null
         then
-            echo "Required binary '$i' is not installed" >$LOGERR
+            echo "Required binary '$i' is not installed" >&2
             false
         fi
     done
@@ -69,67 +75,68 @@ main() {
 
     if [[ ! -d "${BASEDIR}/$instance_catalog" ]]; then
 	if (( DEBUG )); then
-	    echo "RUN: mkdir \"${BASEDIR}/$instance_catalog\" 2>$LOGERR" >&2
+	    echo "RUN: mkdir \"${BASEDIR}/$instance_catalog\"" >&2
 	fi
 	if (( ! DRY_RUN )); then
-	    mkdir "${BASEDIR}/$instance_catalog" 2>$LOGERR
+	    mkdir "${BASEDIR}/$instance_catalog"
 	fi
     fi
 
-    cd "${BASEDIR}/$instance_catalog" 2>$LOGERR
+    cd "${BASEDIR}/$instance_catalog" || exit 1
     # Удаление всех каталогов в текущем, оставляя только (( BACKUP_DEPTH - 1 ))
     if (( DEBUG )); then
-	echo "RUN: ls -dt 20* 2>/dev/null | tail -n +$BACKUP_DEPTH | xargs rm -rf -- 2>$LOGERR" >&2
+	# shellcheck disable=SC2028
+	echo "RUN: find . -maxdepth 1 -mindepth 1 -type d -printf '%P\n' | sort -r | tail -n +$BACKUP_DEPTH | xargs rm -rf --" >&2
     fi
     if (( ! DRY_RUN )); then
-	ls -dt 20* 2>/dev/null | tail -n +$BACKUP_DEPTH | xargs rm -rf -- 2>$LOGERR
+	find . -maxdepth 1 -mindepth 1 -type d -printf '%P\n' | sort -r | tail -n +$BACKUP_DEPTH | xargs rm -rf --
     fi
 
     if (( DEBUG )); then
-	echo "RUN: $command --host=$instance_address --username=$BAKUSER --pgdata=$BAKDIR --no-password 2>$LOGERR" >&2
+	echo "RUN: $command --host=$instance_address --username=$BAKUSER --pgdata=$BAKDIR --no-password" >&2
     fi
     if (( ! DRY_RUN )); then
-	$command --host=$instance_address --username=$BAKUSER --pgdata=$BAKDIR --no-password 2>$LOGERR
+	$command --host=$instance_address --username=$BAKUSER --pgdata="$BAKDIR" --no-password
     fi
 
     exit 0
 }
 
 checks_main() {
-    local fn=$FUNCNAME
+    local fn=${FUNCNAME[0]}
 
-    if [[ $(whoami) != $RUNUSER ]]; then
-        echo "This script must be run as '$RUNUSER' user" >$LOGERR
+    if [[ $(whoami) != "$RUNUSER" ]]; then
+        echo "This script must be run as '$RUNUSER' user" >&2
         false
     fi
 
     if (( ! BACKUP_DEPTH )); then
-        echo "Required variable 'BACKUP_DEPTH' (int) missing in configuration file '$CONFIG'" >$LOGERR
+        echo "Required variable 'BACKUP_DEPTH' (int) missing in configuration file '$CONFIG'" >&2
         false
     fi
 
     if [[ -z $instance_address ]]; then
-        echo "Required parameter (instance address) is missing" >$LOGERR
+        echo "Required parameter (instance address) is missing" >&2
         false
     fi
 
     if [[ ! -d "${BASEDIR}/$instance_catalog" ]]; then
-        mkdir "${BASEDIR}/$instance_catalog" 2>$LOGERR
+        mkdir "${BASEDIR}/$instance_catalog"
     fi
 
     if [[ ! -r "$pgpass" ]]; then
-        echo "PostgreSQL authorization file ($pgpass) is missing or unreadable" >$LOGERR
+        echo "PostgreSQL authorization file ($pgpass) is missing or unreadable" >&2
         false
     fi
 
-    if ! fgrep -q $instance_catalog $pgpass
+    if ! grep -Fq $instance_catalog "$pgpass"
     then
-        echo "PostgreSQL authorization file ($pgpass) is not contains authentication data for '$instance_address' address." >$LOGERR
+        echo "PostgreSQL authorization file ($pgpass) is not contains authentication data for '$instance_address' address." >&2
         false
     fi
 
     if (( ! config_present )); then
-        echo "Configuration file '$CONFIG' not found in '$CONFIG_PATH'" >$LOGERR
+        echo "Configuration file '$CONFIG' not found in '$CONFIG_PATH'" >&2
         false
     fi
 }
@@ -141,26 +148,30 @@ except() {
     if (( ! NOMAIL )); then
         echo -e "\tПроизошла ошибка при выполнении скрипта ${0} (строка ${no}, функция '$fn'), 
 выполняющего полное копирование СУБД PostgreSQL посредством команды pg_basebackup с хоста *${instance_address}*.
-\tВывод сбойной команды:\n\n  $(cat ${LOGERR}|awk '$1=$1' ORS=' ')" | mailx -s "$MAIL_SUBJ" $MAILXTO
+\tВывод сбойной команды:\n\n  $(awk '$1=$1' ORS=' ' "${LOGERR}")" | mailx -s "$MAIL_SUBJ" $MAILXTO
     fi
 
     if [[ -t 1 ]]; then
-        echo "* FATAL: error occured in function '$fn' on line ${no}. Output: '$(cat ${LOGERR}|awk '$1=$1' ORS=' ')'" 1>&2
+        echo "* FATAL: error occured in function '$fn' on line ${no}. Output: '$(awk '$1=$1' ORS=' ' "${LOGERR}")'" 1>&2
     fi
 
-    logger -p user.err -t "$bn" "* FATAL: error occured in function '$fn' on line ${no}. Output: '$(cat ${LOGERR}|awk '$1=$1' ORS=' ')'"
+    logger -p user.err -t "$bn" "* FATAL: error occured in function '$fn' on line ${no}. Output: '$(awk '$1=$1' ORS=' ' "${LOGERR}")'"
     exit $ret
 }
 
-myexit() {
+_exit() {
     local ret=$?
     local -i bakdir_size=0
+
+    if (( ! DEBUG )); then
+	exec 2>&4 4>&-	# Restore stderr and close file descriptor #4
+    fi
 
     if [[ -d "${BASEDIR}/${instance_catalog}/$BAKDIR" ]]; then
         bakdir_size=$(du -sb "${BASEDIR}/${instance_catalog}/$BAKDIR"|awk '{ print $1 }')
         # Если размер полученного каталога с бэкапом составляет менее 2M, то бэкап признаётся неудавшимся и каталог удаляется
         if (( bakdir_size < 2000000 )); then
-            rm -rf "${BASEDIR}/${instance_catalog}/$BAKDIR"
+            rm -rf "${BASEDIR:?}/${instance_catalog}/$BAKDIR"
         fi
     fi
 
@@ -171,6 +182,7 @@ myexit() {
 usage() {
     echo -e "\tUsage: $bn [OPTIONS] <postgresql_instance_address>\n
     Options:
+
     --basedir, -b <path>	BASEDIR (default: '$BASEDIR')
     --depth, -D <n>		number of stored backups
     --strip-last-dash, -s	strip last dash-separated part of instance address

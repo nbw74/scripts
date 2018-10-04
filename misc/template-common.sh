@@ -23,7 +23,6 @@ main() {
     trap 'except $LINENO' ERR
     trap _exit EXIT
 
-    touch "$LOGERR"
     exec 4>&2		# Link file descriptor #4 with stderr. Preserve stderr
     exec 2>>"$LOGERR"	# stderr replaced with file $LOGERR
 
