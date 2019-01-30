@@ -11,10 +11,10 @@ set -o nounset
 
 # CONSTANTS BEGIN
 readonly PATH=/bin:/usr/bin:/sbin:/usr/sbin
-readonly bn="$(basename $0)"
-readonly LOGERR=$(mktemp --tmpdir ${bn%\.*}.XXXX)
+readonly bn="$(basename "$0")"
+readonly LOGERR=$(mktemp --tmpdir "${bn%\.*}.XXXX")
 readonly BIN_REQUIRED="aunpack"
-readonly ping_opts="-i0.2 -W1 -c5 -q"
+typeset -a ping_opts=( '-i0.2' '-W1' '-c5' '-q' )
 # CONSTANTS END
 
 typeset OPTTAIL="" ADDRESS="" REALM=""
@@ -37,22 +37,24 @@ main() {
     local domain=${cert_final%\.*}
 
     if [[ -f "${cert%\.*}.ca-bundle" ]]; then
-        cat $cert ${cert%\.*}.ca-bundle > $cert_final
+        cat "$cert" "${cert%\.*}.ca-bundle" > "$cert_final"
     elif [[ -f COMODORSADomainValidationSecureServerCA.crt && -f COMODORSAAddTrustCA.crt && -f AddTrustExternalCARoot.crt ]]; then
-        cat $cert COMODORSADomainValidationSecureServerCA.crt COMODORSAAddTrustCA.crt AddTrustExternalCARoot.crt > $cert_final
+        cat "$cert" COMODORSADomainValidationSecureServerCA.crt COMODORSAAddTrustCA.crt AddTrustExternalCARoot.crt > "$cert_final"
+    elif [[ -f SectigoRSADomainValidationSecureServerCA.crt && -f USERTrustRSAAddTrustCA.crt && -f AddTrustExternalCARoot.crt ]]; then
+        cat "$cert" SectigoRSADomainValidationSecureServerCA.crt USERTrustRSAAddTrustCA.crt AddTrustExternalCARoot.crt > "$cert_final"
     else
         echo_err "Unknown certificate layout"
 	false
     fi
 
-    mv ${OPTTAIL%\.*}.key ${domain}.key
+    mv ${OPTTAIL%\.*}.key "${domain}.key"
 
     if [[ -z "$REALM" ]]; then
 
 	if [[ -z "$ADDRESS" ]]; then
 	    echo_info "remote server isn't specified, using '$domain'"
 
-	    ADDRESS=$(dig +short $domain|head -1)
+	    ADDRESS=$(dig +short "$domain"|head -1)
 
 	    if [[ -z "$ADDRESS" ]]; then
 		echo_err "cannot resolve '$domain'"
@@ -60,19 +62,19 @@ main() {
 	    fi
 	fi
 
-	if ! ping $ping_opts $ADDRESS >/dev/null
+	if ! ping "${ping_opts[*]}" "$ADDRESS" >/dev/null
 	then
 	    echo_err "'$ADDRESS' is unreachable"
 	    false
 	fi
 
 	echo_info "try scp files to '$ADDRESS'..."
-	scp $cert_final ${domain}.key ${ADDRESS}:
+	scp "$cert_final" "${domain}.key" "${ADDRESS}":
 
     else
 
-	mkdir -p ${HOME}/ansible/${REALM}/files/crypto
-	cp -v $cert_final ${domain}.key ${HOME}/ansible/${REALM}/files/crypto
+	mkdir -p "${HOME}/ansible/${REALM}/files/crypto"
+	cp -v "$cert_final" "${domain}.key" "${HOME}/ansible/${REALM}/files/crypto"
 	
     fi
 
@@ -102,7 +104,7 @@ except() {
     fi
 
     if [[ -f ${domain}.key ]]; then
-        mv ${domain}.key ../${OPTTAIL%\.*}.key || :
+        mv "${domain}.key" ../${OPTTAIL%\.*}.key || :
     fi
 
     cd .. || :
