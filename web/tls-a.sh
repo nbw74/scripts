@@ -42,6 +42,7 @@ main() {
         cat $cert COMODORSADomainValidationSecureServerCA.crt COMODORSAAddTrustCA.crt AddTrustExternalCARoot.crt > $cert_final
     else
         echo_err "Unknown certificate layout"
+	false
     fi
 
     mv ${OPTTAIL%\.*}.key ${domain}.key
