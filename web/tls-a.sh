@@ -29,7 +29,9 @@ main() {
     _checks
 
     aunpack $OPTTAIL
-    mv ${OPTTAIL%\.*}.key ${OPTTAIL%\.*}/
+    if [[ -f "${OPTTAIL%\.*}.key" ]]; then
+	mv ${OPTTAIL%\.*}.key ${OPTTAIL%\.*}/
+    fi
     cd ${OPTTAIL%\.*} || false
 
     cert=$(find . -maxdepth 1 -type f -regextype sed -regex '.*/[-_a-z0-9]\+_[a-z]\+\.crt'  -printf '%P\n' -quit)
@@ -47,7 +49,9 @@ main() {
 	false
     fi
 
-    mv ${OPTTAIL%\.*}.key "${domain}.key"
+    if [[ -f "${OPTTAIL%\.*}.key" ]]; then
+	mv ${OPTTAIL%\.*}.key "${domain}.key"
+    fi
 
     if [[ -z "$REALM" ]]; then
 
@@ -62,7 +66,7 @@ main() {
 	    fi
 	fi
 
-	if ! ping ${ping_opts[*]} "$ADDRESS" >/dev/null
+	if ! ping "${ping_opts[@]}" "$ADDRESS" >/dev/null
 	then
 	    echo_err "'$ADDRESS' is unreachable"
 	    false
@@ -74,8 +78,13 @@ main() {
     else
 
 	mkdir -p "${HOME}/ansible/${REALM}/files/crypto"
-	cp -v "$cert_final" "${domain}.key" "${HOME}/ansible/${REALM}/files/crypto"
-	
+
+	if [[ -f "${domain}.key" ]]; then
+	    cp -v "${domain}.key" "${HOME}/ansible/${REALM}/files/crypto"
+	fi
+
+	cp -v "$cert_final" "${HOME}/ansible/${REALM}/files/crypto"
+
     fi
 
     echo_ok
@@ -129,7 +138,7 @@ _exit() {
 }
 
 usage() {
-    echo -e "\tUsage: $bn [OPTIONS] <(zip-)archive with certificates>\n
+    echo -e "\\tUsage: $bn [OPTIONS] <(zip-)archive with certificates>\\n
     Options:
 
     -a, --address <ipaddr>	IP address for scp
