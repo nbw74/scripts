@@ -13,7 +13,7 @@ set -o nounset
 readonly PATH=/bin:/usr/bin:/sbin:/usr/sbin
 readonly bn="$(basename "$0")"
 readonly LOGERR=$(mktemp --tmpdir "${bn%\.*}.XXXX")
-readonly BIN_REQUIRED="aunpack"
+readonly BIN_REQUIRED="aunpack dos2unix"
 typeset -a ping_opts=( '-i0.2' '-W1' '-c5' '-q' )
 # CONSTANTS END
 
@@ -49,8 +49,11 @@ main() {
 	false
     fi
 
+    dos2unix "$cert_final"
+
     if [[ -f "${OPTTAIL%\.*}.key" ]]; then
 	mv ${OPTTAIL%\.*}.key "${domain}.key"
+	dos2unix "${domain}.key"
     fi
 
     if [[ -z "$REALM" ]]; then
