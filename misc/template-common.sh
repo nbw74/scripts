@@ -8,6 +8,7 @@ set -o errtrace
 set -o pipefail
 
 # DEFAULTS BEGIN
+typeset -i DEBUG=0
 # DEFAULTS END
 
 # CONSTANTS BEGIN
@@ -23,8 +24,10 @@ main() {
     trap 'except $LINENO' ERR
     trap _exit EXIT
 
-    exec 4>&2		# Link file descriptor #4 with stderr. Preserve stderr
-    exec 2>>"$LOGERR"	# stderr replaced with file $LOGERR
+    if (( ! DEBUG )); then
+	exec 4>&2		# Link file descriptor #4 with stderr. Preserve stderr
+	exec 2>>"$LOGERR"	# stderr replaced with file $LOGERR
+    fi
 
     checks
 
@@ -58,7 +61,9 @@ except() {
 _exit() {
     local ret=$?
 
-    exec 2>&4 4>&-	# Restore stderr and close file descriptor #4
+    if (( ! DEBUG )); then
+	exec 2>&4 4>&-	# Restore stderr and close file descriptor #4
+    fi
 
     [[ -f $LOGERR ]] && rm "$LOGERR"
     exit $ret
@@ -68,8 +73,9 @@ usage() {
     echo -e "\\n    Usage: $bn [OPTIONS] <parameter>\\n
     Options:
 
-    -a, --arg1 <value>      example argument
-    -h, --help              print help
+    -a, --arg1 <value>		example argument
+    -d, --debug			debug mode
+    -h, --help			print help
 "
 }
 # Getopts
@@ -87,6 +93,7 @@ unset TEMP
 while true; do
     case $1 in
 	-a|--arg1)		FLAG=$2 ;	shift 2	;;
+	-d|--debug)		DEBUG=1 ;	shift	;;
 	-h|--help)		usage ;		exit 0	;;
 	--)			shift ;		break	;;
 	*)			usage ;		exit 1
