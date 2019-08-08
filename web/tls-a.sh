@@ -34,7 +34,7 @@ main() {
     fi
     cd ${OPTTAIL%\.*} || false
 
-    cert=$(find . -maxdepth 1 -type f -regextype sed -regex '.*/[-_a-z0-9]\+_[a-z]\+\.crt'  -printf '%P\n' -quit)
+    cert=$(find . -maxdepth 1 -type f -regextype sed -regex '.*/[-_a-z0-9]\+\(_\|--p1\)[a-z]\+\.crt'  -printf '%P\n' -quit)
     local cert_final=${cert//_/.}
     local domain=${cert_final%\.*}
 
