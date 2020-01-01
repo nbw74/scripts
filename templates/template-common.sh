@@ -51,7 +51,7 @@ except() {
     local no=${1:-no_line}
 
     if [[ -t 1 ]]; then
-        echo "* FATAL: error occured in function '$fn' near line ${no}. Stderr: '$(awk '$1=$1' ORS=' ' "${LOGERR}")'"
+        echo_fatal "error occured in function '$fn' near line ${no}. Stderr: '$(awk '$1=$1' ORS=' ' "${LOGERR}")'"
     fi
 
     logger -p user.err -t "$bn" "* FATAL: error occured in function '$fn' near line ${no}. Stderr: '$(awk '$1=$1' ORS=' ' "${LOGERR}")'"
@@ -99,6 +99,17 @@ while true; do
 	*)			usage ;		exit 1
     esac
 done
+
+echo_err()      { tput setaf 7; echo "* ERROR: $*" ;   tput sgr0;   }
+echo_fatal()    { tput setaf 1; echo "* FATAL: $*" ;   tput sgr0;   }
+echo_warn()     { tput setaf 3; echo "* WARNING: $*" ; tput sgr0;   }
+echo_info()     { tput setaf 6; echo "* INFO: $*" ;    tput sgr0;   }
+echo_ok()       { tput setaf 2; echo "* OK" ;          tput sgr0;   }
+
+if [[ "${1:-NOP}" == "NOP" ]]; then
+    usage
+    exit 1
+fi
 
 main
 
