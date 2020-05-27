@@ -44,6 +44,8 @@ main() {
         cat "$cert" COMODORSADomainValidationSecureServerCA.crt COMODORSAAddTrustCA.crt AddTrustExternalCARoot.crt > "$cert_final"
     elif [[ -f SectigoRSADomainValidationSecureServerCA.crt && -f USERTrustRSAAddTrustCA.crt && -f AddTrustExternalCARoot.crt ]]; then
         cat "$cert" SectigoRSADomainValidationSecureServerCA.crt USERTrustRSAAddTrustCA.crt AddTrustExternalCARoot.crt > "$cert_final"
+    elif [[ -f SectigoRSADomainValidationSecureServerCA.crt && -f USERTrustRSAAAACA.crt && -f AAACertificateServices.crt ]]; then
+        cat "$cert" SectigoRSADomainValidationSecureServerCA.crt USERTrustRSAAAACA.crt AAACertificateServices.crt > "$cert_final"
     else
         echo_err "Unknown certificate layout"
 	false
