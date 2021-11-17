@@ -34,7 +34,7 @@ main() {
     fi
     cd ${OPTTAIL%\.*} || false
 
-    cert=$(find . -maxdepth 1 -type f -regextype sed -regex '.*/[-_a-z0-9]\+\(_\|--p1\)[a-z]\+\.crt'  -printf '%P\n' -quit)
+    cert=$(find . -maxdepth 1 -type f -regextype sed -regex '.*/[-_a-zA-Z0-9]\+\(_\|--p1\|--80\)[a-z]\+\.crt'  -printf '%P\n' -quit)
     local cert_final=${cert//_/.}
     local domain=${cert_final%\.*}
 
@@ -46,6 +46,8 @@ main() {
         cat "$cert" SectigoRSADomainValidationSecureServerCA.crt USERTrustRSAAddTrustCA.crt AddTrustExternalCARoot.crt > "$cert_final"
     elif [[ -f SectigoRSADomainValidationSecureServerCA.crt && -f USERTrustRSAAAACA.crt && -f AAACertificateServices.crt ]]; then
         cat "$cert" SectigoRSADomainValidationSecureServerCA.crt USERTrustRSAAAACA.crt AAACertificateServices.crt > "$cert_final"
+    elif [[ -f GoGetSSLRSADVCA.crt && -f USERTrustRSAAAACA.crt && -f AAACertificateServices.crt ]]; then
+        cat "$cert" GoGetSSLRSADVCA.crt USERTrustRSAAAACA.crt AAACertificateServices.crt > "$cert_final"
     else
         echo_err "Unknown certificate layout"
 	false
@@ -82,13 +84,13 @@ main() {
 
     else
 
-	mkdir -p "${HOME}/ansible/${REALM}/files/crypto"
+	mkdir -p "${HOME}/projects/wm/system/${REALM}/files/crypto"
 
 	if [[ -f "${domain}.key" ]]; then
-	    cp -v "${domain}.key" "${HOME}/ansible/${REALM}/files/crypto"
+	    cp -v "${domain}.key" "${HOME}/projects/wm/system/${REALM}/files/crypto"
 	fi
 
-	cp -v "$cert_final" "${HOME}/ansible/${REALM}/files/crypto"
+	cp -v "$cert_final" "${HOME}/projects/wm/system/${REALM}/files/crypto"
 
     fi
 
@@ -147,7 +149,7 @@ usage() {
     Options:
 
     -a, --address <ipaddr>	IP address for scp
-    -l, --local <REALM>		copy cert in local catalog ~/ansible/REALM/files/crypto
+    -l, --local <REALM>		copy cert in local catalog ~/projects/wm/system/REALM/files/crypto
     -h, --help			print help
 "
 }
