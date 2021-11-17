@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Shell script template
+# Shell script template (for use in foreground tasks)
 #
 
 set -o nounset
@@ -14,7 +14,6 @@ typeset -i DEBUG=0
 # CONSTANTS BEGIN
 readonly PATH=/bin:/usr/bin:/sbin:/usr/sbin
 readonly bn="$(basename "$0")"
-readonly LOGERR=$(mktemp --tmpdir "${bn%\.*}.XXXX")
 readonly BIN_REQUIRED=""
 # CONSTANTS END
 
@@ -23,11 +22,6 @@ main() {
 
     trap 'except $LINENO' ERR
     trap _exit EXIT
-
-    if (( ! DEBUG )); then
-	exec 4>&2		# Link file descriptor #4 with stderr. Preserve stderr
-	exec 2>>"$LOGERR"	# stderr replaced with file $LOGERR
-    fi
 
     checks
 
@@ -50,22 +44,12 @@ except() {
     local ret=$?
     local no=${1:-no_line}
 
-    if [[ -t 1 ]]; then
-        echo_fatal "error occured in function '$fn' near line ${no}. Stderr: '$(awk '$1=$1' ORS=' ' "${LOGERR}")'"
-    fi
-
-    logger -p user.err -t "$bn" "* FATAL: error occured in function '$fn' near line ${no}. Stderr: '$(awk '$1=$1' ORS=' ' "${LOGERR}")'"
+    echo_fatal "error occured in function '$fn' near line ${no}."
     exit $ret
 }
 
 _exit() {
     local ret=$?
-
-    if (( ! DEBUG )); then
-	exec 2>&4 4>&-	# Restore stderr and close file descriptor #4
-    fi
-
-    [[ -f $LOGERR ]] && rm "$LOGERR"
     exit $ret
 }
 
