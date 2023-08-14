@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Shell script template (for use in background tasks)
 #
@@ -7,15 +7,22 @@ set -o nounset
 set -o errtrace
 set -o pipefail
 
+# http://redsymbol.net/articles/unofficial-bash-strict-mode/
+IFS=$'\n\t'
+
 # DEFAULTS BEGIN
 typeset -i DEBUG=0
 # DEFAULTS END
 
 # CONSTANTS BEGIN
 readonly PATH=/bin:/usr/bin:/sbin:/usr/sbin
-readonly bn="$(basename "$0")"
-readonly LOGERR=$(mktemp --tmpdir "${bn%\.*}.XXXX")
-readonly BIN_REQUIRED=""
+
+typeset bn="" LOGERR=""
+bn="$(basename "$0")"
+LOGERR=$(mktemp --tmpdir "${bn%\.*}.XXXX")
+readonly bn LOGERR
+
+readonly -a BIN_REQUIRED=()
 # CONSTANTS END
 
 main() {
@@ -37,10 +44,10 @@ main() {
 checks() {
     local fn=${FUNCNAME[0]}
     # Required binaries check
-    for i in $BIN_REQUIRED; do
+    for i in "${BIN_REQUIRED[@]}"; do
         if ! command -v "$i" >/dev/null
         then
-            echo "Required binary '$i' is not installed" >&2
+            echo_err "Required binary '$i' is not installed"
             false
         fi
     done
@@ -77,7 +84,7 @@ usage() {
 # Getopts
 getopt -T; (( $? == 4 )) || { echo "incompatible getopt version" >&2; exit 4; }
 
-if ! TEMP=$(getopt -o a:h --longoptions arg1:,help -n "$bn" -- "$@")
+if ! TEMP=$(getopt -o a:dh --longoptions arg1:,debug,help -n "$bn" -- "$@")
 then
     echo "Terminating..." >&2
     exit 1

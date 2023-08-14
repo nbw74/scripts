@@ -13,7 +13,11 @@ typeset -i DEBUG=0
 
 # CONSTANTS BEGIN
 readonly PATH=/bin:/usr/bin:/sbin:/usr/sbin
-readonly bn="$(basename "$0")"
+
+typeset bn=""
+bn="$(basename "$0")"
+readonly bn
+
 readonly BIN_REQUIRED=""
 # CONSTANTS END
 
