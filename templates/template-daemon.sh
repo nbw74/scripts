@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#
+# shellcheck disable=SC2317
 # Shell script template (for use in background tasks)
 #
 
@@ -47,29 +47,29 @@ checks() {
     for i in "${BIN_REQUIRED[@]}"; do
         if ! command -v "$i" >/dev/null
         then
-            echo_err "Required binary '$i' is not installed"
+            echo "Required binary '$i' is not installed" >&2
             false
         fi
     done
 }
 
 except() {
-    local ret=$?
+    local -i ret=$?
     local no=${1:-no_line}
 
     logger -p user.err -t "$bn" "* FATAL: error occured in function '$fn' near line ${no}. Stderr: '$(awk '$1=$1' ORS=' ' "${LOGERR}")'"
-    exit $ret
+    exit "$ret"
 }
 
 _exit() {
-    local ret=$?
+    local -i ret=$?
 
     if (( ! DEBUG )); then
 	exec 2>&4 4>&-	# Restore stderr and close file descriptor #4
     fi
 
     [[ -f $LOGERR ]] && rm "$LOGERR"
-    exit $ret
+    exit "$ret"
 }
 
 usage() {
