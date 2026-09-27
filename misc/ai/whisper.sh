@@ -10,7 +10,7 @@ set -o pipefail
 
 # DEFAULTS BEGIN
 typeset -i DEBUG=0 FORCE_REWRITE=0
-typeset MEDIA_FILE="" OUTPUT_FILE="" GGML_MODEL="large-v3-turbo"
+typeset OUTPUT_FILE="" GGML_MODEL="large-v3-turbo"
 # DEFAULTS END
 
 # CONSTANTS BEGIN
@@ -32,34 +32,73 @@ main() {
 
     checks
 
-    (( DEBUG )) && set -xv
+    # (( DEBUG )) && set -xv
 
-    MEDIA_FILE="$(realpath "$MEDIA_FILE")"
-    local media_file_no_ext="${MEDIA_FILE%.*}"
+    local -a Files_for_whisper_input=()
 
-    local filetype=""
+    for arg in "$@"
+    do
+	local media_file="$arg"
 
-    filetype=$(file -b --mime-type "$MEDIA_FILE" | awk -F '/' '{ print $1 }')
+	media_file="$(realpath "$media_file")"
+	local media_file_no_ext="${media_file%.*}"
 
-    if [[ $filetype == "video" ]]
-    then
-	echo_info "File has video mime-type, try to convert..."
+	local filetype=""
 
-	if [[ -e "${media_file_no_ext}.ogg" && $FORCE_REWRITE == 0 ]]
+	filetype=$(file -b --mime-type "$media_file" | awk -F '/' '{ print $1 }')
+
+	if [[ $filetype == "video" ]]
 	then
-	    echo_err "Output audio file '${media_file_no_ext}.ogg' already exists and --force not given, cannot continue"
-	    false
+	    echo_info "File $media_file has video mime-type, try to convert with ffmpeg..." >&2
+
+	    if [[ -e "${media_file_no_ext}.ogg" && $FORCE_REWRITE == 0 ]]
+	    then
+		echo_err "Output audio file '${media_file_no_ext}.ogg' already exists and --force not given, cannot continue" >&2
+		false
+	    else
+		ffmpeg -y -loglevel warning -i "$media_file" -vn -c:a libvorbis -q:a 5 "${media_file_no_ext}.ogg"
+		media_file="${media_file_no_ext}.ogg"
+	    fi
+	elif [[ $filetype == "audio" ]]
+	then
+	    echo_info "File $media_file has audio mime-type, processing..." >&2
 	else
-	    ffmpeg -y -i "$MEDIA_FILE" -vn -c:a libvorbis -q:a 5 "${media_file_no_ext}.ogg"
-	    MEDIA_FILE="${media_file_no_ext}.ogg"
+	    echo_err "File $media_file has unsupported mime-type, panic" >&2
+	    false
 	fi
-    elif [[ $filetype == "audio" ]]
+
+	Files_for_whisper_input+=("$media_file")
+    done
+
+    (( DEBUG )) && echo_debug "Files_for_whisper_input[${Files_for_whisper_input[*]}]"
+
+    if [[ ${#Files_for_whisper_input[@]} -gt 1 ]]
     then
-	echo_info "File has audio mime-type, processing..."
-    else
-	echo_err "File has unsupported mime-type, panic"
-	false
+	local tempfile1="" tempfile2=""
+	tempfile1=$(mktemp /tmp/whisper.XXXX)
+	tempfile2=$(mktemp --suffix=.ogg whisper.XXXX)
+
+	for (( i=0; i<${#Files_for_whisper_input[@]}; i++ )); do
+	    echo "file '${Files_for_whisper_input[$i]}'" >> "$tempfile1"
+	done
+
+	if grep -Fv .ogg "$tempfile1"
+	then
+	    echo_info "Concat multiple audio files into single .ogg file with ffmpeg..." >&2
+	    ffmpeg -y -loglevel warning -f concat -safe 0 -i "$tempfile1" -c:a libvorbis -q:a 5 "$tempfile2"
+	else
+	    echo_info "Concat multiple .ogg files into single file with ffmpeg..." >&2
+	    ffmpeg -y -loglevel warning -f concat -safe 0 -i "$tempfile1" -c:a copy "$tempfile2"
+	fi
+
+	rm "$tempfile1"
+
+	media_file="$tempfile2"
+	media_file="$(realpath "$media_file")"
+	media_file_no_ext="${media_file%.*}"
     fi
+
+    (( DEBUG )) && echo_debug "media_file[$media_file] media_file_no_ext[$media_file_no_ext]"
 
     if [[ "${OUTPUT_FILE:-nul}" == "nul" ]]
     then
@@ -68,7 +107,7 @@ main() {
 
     if [[ -e "${OUTPUT_FILE}.txt" && $FORCE_REWRITE == 0 ]]
     then
-	echo_err "Output file '${OUTPUT_FILE}.txt' already exists and --force not given, cannot continue"
+	echo_err "Output file '${OUTPUT_FILE}.txt' already exists and --force not given, cannot continue" >&2
 	false
     fi
 
@@ -78,7 +117,7 @@ main() {
 
     cd "$WHISPER_PATH" || false
 
-    build/bin/whisper-cli --print-colors --print-progress --language ru --model "models/ggml-${GGML_MODEL}.bin" --file "$MEDIA_FILE" --output-txt --output-file "${OUTPUT_FILE}"
+    build/bin/whisper-cli --print-colors --print-progress --language ru --model "models/ggml-${GGML_MODEL}.bin" --file "$media_file" --output-txt --output-file "${OUTPUT_FILE}"
 
     exit 0
 }
@@ -99,7 +138,7 @@ except() {
     local ret=$?
     local no=${1:-no_line}
 
-    echo_fatal "error occured in function '$fn' near line ${no}."
+    echo_fatal "error occured in function '$fn' near line ${no}." >&2
     exit $ret
 }
 
@@ -154,16 +193,15 @@ done
 echo_err()      { tput setaf 7; echo "* ERROR: $*" ;   tput sgr0;   }
 echo_fatal()    { tput setaf 1; echo "* FATAL: $*" ;   tput sgr0;   }
 echo_warn()     { tput setaf 3; echo "* WARNING: $*" ; tput sgr0;   }
+echo_debug()    { tput setaf 3; tput bold; echo "* DEBUG: $*" ;   tput sgr0;   }
 echo_info()     { tput setaf 6; echo "* INFO: $*" ;    tput sgr0;   }
 echo_ok()       { tput setaf 2; echo "* OK" ;          tput sgr0;   }
 
 if [[ "${1:-NOP}" == "NOP" ]]; then
     usage
     exit 1
-else
-    MEDIA_FILE="$1"
 fi
 
-main
+main "$@"
 
 ## EOF ##
