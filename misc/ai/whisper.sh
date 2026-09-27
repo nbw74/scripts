@@ -63,7 +63,7 @@ main() {
 
     if [[ "${OUTPUT_FILE:-nul}" == "nul" ]]
     then
-	OUTPUT_FILE="${media_file_no_ext}"
+	OUTPUT_FILE="${media_file_no_ext}:$GGML_MODEL"
     fi
 
     if [[ -e "${OUTPUT_FILE}.txt" && $FORCE_REWRITE == 0 ]]
