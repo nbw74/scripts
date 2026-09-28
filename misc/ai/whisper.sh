@@ -9,7 +9,7 @@ set -o errtrace
 set -o pipefail
 
 # DEFAULTS BEGIN
-typeset -i DEBUG=0 FORCE_REWRITE=0
+typeset -i DEBUG=0 FORCE_REWRITE=0 TO_OGG=0
 typeset OUTPUT_FILE="" GGML_MODEL="large-v3-turbo"
 # DEFAULTS END
 
@@ -47,9 +47,9 @@ main() {
 
 	filetype=$(file -b --mime-type "$media_file" | awk -F '/' '{ print $1 }')
 
-	if [[ $filetype == "video" ]]
+	if [[ $filetype == "video" || $TO_OGG -eq 1 ]]
 	then
-	    echo_info "File $media_file has video mime-type, try to convert with ffmpeg..." >&2
+	    echo_info "File $media_file has video mime-type or conversion forced, try to convert with ffmpeg..." >&2
 
 	    if [[ -e "${media_file_no_ext}.ogg" && $FORCE_REWRITE == 0 ]]
 	    then
@@ -153,6 +153,7 @@ usage() {
 
     -m, --model <name>		GGML model name; default: large-v3-turbo
     -o, --output <path>		output text file name (without extension); default is same as input file path
+    -O, --to-ogg		force convert file to ogg
     -f, --force			force overwrite existing output file(s)
     -d, --debug			debug mode
     -h, --help			print help
@@ -169,7 +170,7 @@ usage() {
 # Getopts
 getopt -T; (( $? == 4 )) || { echo "incompatible getopt version" >&2; exit 4; }
 
-if ! TEMP=$(getopt -o m:fdh --longoptions model:,force,debug,help -n "$bn" -- "$@")
+if ! TEMP=$(getopt -o m:o:Ofdh --longoptions model:,output:,to-ogg,force,debug,help -n "$bn" -- "$@")
 then
     echo "Terminating..." >&2
     exit 1
@@ -182,6 +183,7 @@ while true; do
     case $1 in
 	-m|--model)		GGML_MODEL=$2 ;		shift 2	;;
 	-o|--output)		OUTPUT_FILE=$2 ;	shift 2	;;
+	-O|--to-ogg)		TO_OGG=1 ;		shift	;;
 	-f|--force)		FORCE_REWRITE=1 ;	shift	;;
 	-d|--debug)		DEBUG=1 ;		shift	;;
 	-h|--help)		usage ;			exit 0	;;
